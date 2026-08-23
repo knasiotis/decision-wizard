@@ -298,7 +298,7 @@ private fun LinkDialog(
                 TextButton(
                     onClick = { proceed(null, newLabel) },
                     enabled = newLabel.isNotBlank()
-                ) { Text("Use this label") }
+                ) { Text("Add option") }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }

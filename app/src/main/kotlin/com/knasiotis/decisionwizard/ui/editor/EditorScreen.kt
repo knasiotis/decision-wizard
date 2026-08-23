@@ -29,10 +29,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
@@ -40,6 +45,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.knasiotis.decisionwizard.layout.EdgeKind
 import com.knasiotis.decisionwizard.layout.GraphLayout
 import com.knasiotis.decisionwizard.layout.NODE_WIDTH
+import com.knasiotis.decisionwizard.layout.Position
 import com.knasiotis.decisionwizard.model.Graph
 import com.knasiotis.decisionwizard.model.Issue
 import com.knasiotis.decisionwizard.ui.common.NameDialog
@@ -191,26 +197,64 @@ private fun Canvas(
     modifier: Modifier = Modifier
 ) {
     val edgeColour = MaterialTheme.colorScheme.outline
+    val labelColour = MaterialTheme.colorScheme.onSurfaceVariant
+    val labelBackground = MaterialTheme.colorScheme.surface
     val nodeIds = remember(layout) { layout.positions.keys.toList() }
+
+    // Which answer an edge represents is the whole point of the branch, so the
+    // label is drawn on the line rather than left to be inferred from position.
+    val measurer = rememberTextMeasurer()
+    val labelStyle = MaterialTheme.typography.labelSmall.copy(color = labelColour)
+    val painted = remember(layout, labelStyle) {
+        layout.edges.mapNotNull { edge ->
+            val from = layout.positions[edge.sourceId] ?: return@mapNotNull null
+            val to = edge.targetId?.let { layout.positions[it] }
+            when (edge.kind) {
+                EdgeKind.ARROW -> if (to == null) null else PaintedEdge(
+                    from = from, to = to,
+                    text = measurer.measure(edge.label, labelStyle)
+                )
+                // A dangling answer gets a stub going nowhere, so a branch that
+                // has not been built out is visible rather than absent.
+                EdgeKind.DANGLING -> PaintedEdge(
+                    from = from, to = null,
+                    text = measurer.measure(edge.label, labelStyle)
+                )
+                EdgeKind.STUB -> null // rendered as chips on both bubbles
+            }
+        }
+    }
 
     Layout(
         modifier = modifier.drawBehind {
-            // Only edges are painted. Bubbles are real composables, so they stay
-            // hit-testable and accessible at any zoom.
-            layout.edges.forEach { edge ->
-                if (edge.kind != EdgeKind.ARROW) return@forEach
-                val from = layout.positions[edge.sourceId] ?: return@forEach
-                val to = layout.positions[edge.targetId] ?: return@forEach
-
+            // Only edges and their labels are painted. Bubbles are real
+            // composables, so they stay hit-testable at any zoom.
+            painted.forEach { edge ->
                 val start = Offset(
-                    (from.x + NODE_WIDTH / 2).dp.toPx(),
-                    (from.y + NODE_HEIGHT).dp.toPx()
+                    (edge.from.x + NODE_WIDTH / 2).dp.toPx(),
+                    (edge.from.y + NODE_HEIGHT).dp.toPx()
                 )
-                val end = Offset(
-                    (to.x + NODE_WIDTH / 2).dp.toPx(),
-                    to.y.dp.toPx()
-                )
+                val end = if (edge.to != null) {
+                    Offset((edge.to.x + NODE_WIDTH / 2).dp.toPx(), edge.to.y.dp.toPx())
+                } else {
+                    Offset(start.x, start.y + DANGLING_LENGTH.dp.toPx())
+                }
+
                 drawLine(edgeColour, start, end, strokeWidth = 2.dp.toPx())
+
+                val mid = Offset((start.x + end.x) / 2f, (start.y + end.y) / 2f)
+                val size = edge.text.size
+                val topLeft = Offset(mid.x - size.width / 2f, mid.y - size.height / 2f)
+                val pad = 3.dp.toPx()
+
+                // A plate behind the text, or the line reads straight through it.
+                drawRoundRect(
+                    color = labelBackground,
+                    topLeft = Offset(topLeft.x - pad, topLeft.y - pad),
+                    size = Size(size.width + pad * 2, size.height + pad * 2),
+                    cornerRadius = CornerRadius(pad)
+                )
+                drawText(edge.text, topLeft = topLeft)
             }
         },
         content = {
@@ -247,6 +291,16 @@ private fun Canvas(
 
 /** Matches the height LayoutEngine assumes, so edges land on the bubbles. */
 private const val NODE_HEIGHT = 64f
+
+/** How far a dangling answer's stub reaches before stopping at nothing. */
+private const val DANGLING_LENGTH = 40f
+
+private data class PaintedEdge(
+    val from: Position,
+    /** Null for a dangling answer: it goes nowhere by definition. */
+    val to: Position?,
+    val text: TextLayoutResult
+)
 
 @Composable
 private fun NodeBubble(
