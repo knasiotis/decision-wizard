@@ -562,7 +562,14 @@ rehearsal instead of by burning a version number.
   hand-editable.
 - **v0.3.0** — the canvas editor: layout, stub chips, undo/redo, delete ops.
   Authoring moves onto the device.
-- **v0.4.0** — attachments and transcript export.
+- **v0.4.0** — transcript export. Now cheap: a chat already stores its own
+  wording, so exporting one is formatting `Answered`, with no graph to consult
+  and nothing to reconcile.
+
+**Attachments are deferred**, deliberately, and are no longer part of v0.4. They
+are the one feature that forces `.dwiz` to become a zip, and nothing so far has
+needed them. `DwizCodec` already sniffs the zip magic bytes, so the door stays
+open — picking them up later costs nothing that doing them now would save.
 
 ## v0.2 — done
 
