@@ -1,6 +1,8 @@
 package com.knasiotis.decisionwizard.ui
 
 import android.content.ClipData
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,6 +25,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -67,9 +71,29 @@ fun ChatScreen(
     onRewindAndAnswer: (stepIndex: Int, answerId: String) -> Unit,
     onRename: (String) -> Unit,
     onRestart: () -> Unit,
+    exportName: String? = null,
+    onAskExport: () -> Unit = {},
+    onExportTo: (android.net.Uri) -> Unit = {},
+    onCancelExport: () -> Unit = {},
+    message: String? = null,
+    onClearMessage: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var renaming by rememberSaveable { mutableStateOf(false) }
+    val snackbars = remember { SnackbarHostState() }
+
+    val saver = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri -> if (uri != null) onExportTo(uri) else onCancelExport() }
+
+    LaunchedEffect(exportName) { exportName?.let { saver.launch(it) } }
+
+    LaunchedEffect(message) {
+        message?.let {
+            snackbars.showSnackbar(it)
+            onClearMessage()
+        }
+    }
     // Derived from the session every recomposition, never cached — the same rule
     // the canvas layout follows.
     // Takes no graph: everything on screen was recorded when it was asked.
@@ -84,6 +108,7 @@ fun ChatScreen(
 
     Scaffold(
         modifier = modifier,
+        snackbarHost = { SnackbarHost(snackbars) },
         topBar = {
             TopAppBar(
                 title = {
@@ -119,6 +144,11 @@ fun ChatScreen(
                             }
                         )
                     }
+                },
+                actions = {
+                    // Works from the record, so it is offered even on a chat
+                    // whose graph is gone — which is when it matters most.
+                    TextButton(onClick = onAskExport) { Text("Export") }
                 }
             )
         }

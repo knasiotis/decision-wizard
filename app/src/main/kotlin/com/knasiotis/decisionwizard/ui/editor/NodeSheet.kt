@@ -73,6 +73,7 @@ fun NodeSheet(
 
             SheetAction("Edit") { editing = true }
             SheetAction("Add child") { linking = LinkIntent.AddChild }
+            SheetAction("Add resolution") { linking = LinkIntent.AddResolution }
             // Nothing to connect to on a graph that holds only this question —
             // offering it would open an empty list. It returns as soon as there
             // is a second question, including on the root.
@@ -87,6 +88,11 @@ fun NodeSheet(
         NodeEditDialog(
             node = node,
             onChange = { title, body -> viewModel.stageNodeText(node.id, title, body) },
+            onSnippetChange = { id, label, text ->
+                viewModel.stageSnippet(node.id, id, label, text)
+            },
+            onAddSnippet = { viewModel.addSnippet(node.id) },
+            onRemoveSnippet = { viewModel.removeSnippet(node.id, it) },
             onClose = {
                 // One undo step for the whole typing session, not one per keystroke.
                 viewModel.commitEdits(node.id)
@@ -102,6 +108,13 @@ fun NodeSheet(
             intent = intent,
             onAddChild = { answerId, label, title, details ->
                 viewModel.addChild(node.id, answerId, label, title, details)
+                linking = null
+                onDismiss()
+            },
+            onAddResolution = { answerId, label, title, details, snippetLabel, snippetText ->
+                viewModel.addResolution(
+                    node.id, answerId, label, title, details, snippetLabel, snippetText
+                )
                 linking = null
                 onDismiss()
             },
@@ -134,7 +147,7 @@ fun NodeSheet(
     }
 }
 
-enum class LinkIntent { AddChild, Connect }
+enum class LinkIntent { AddChild, AddResolution, Connect }
 
 @Composable
 private fun SheetAction(label: String, onClick: () -> Unit) {
@@ -163,6 +176,9 @@ private fun inboundSummary(graph: Graph, nodeId: String): String {
 private fun NodeEditDialog(
     node: Node,
     onChange: (title: String, body: String) -> Unit,
+    onSnippetChange: (snippetId: String, label: String, text: String) -> Unit,
+    onAddSnippet: () -> Unit,
+    onRemoveSnippet: (String) -> Unit,
     onClose: () -> Unit
 ) {
     var title by remember(node.id) { mutableStateOf(node.title) }
@@ -194,6 +210,44 @@ private fun NodeEditDialog(
                     label = { Text("Details") },
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                HorizontalDivider()
+                Text("Text to copy", style = MaterialTheme.typography.labelMedium)
+                Text(
+                    "Wording the agent pastes into a ticket at this step.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                node.snippets.forEach { snippet ->
+                    // Keyed on the snippet, or adding one would reset the text
+                    // of the ones already on screen.
+                    var label by remember(snippet.id) { mutableStateOf(snippet.label) }
+                    var text by remember(snippet.id) { mutableStateOf(snippet.text) }
+
+                    OutlinedTextField(
+                        value = label,
+                        onValueChange = {
+                            label = it
+                            onSnippetChange(snippet.id, it, text)
+                        },
+                        label = { Text("Label") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = {
+                            text = it
+                            onSnippetChange(snippet.id, label, it)
+                        },
+                        label = { Text("Text") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    TextButton(onClick = { onRemoveSnippet(snippet.id) }) { Text("Remove") }
+                }
+
+                TextButton(onClick = onAddSnippet) { Text("Add text to copy") }
             }
         },
         confirmButton = { TextButton(onClick = onClose) { Text("Done") } }
@@ -206,6 +260,14 @@ private fun LinkDialog(
     node: Node,
     intent: LinkIntent,
     onAddChild: (answerId: String?, newLabel: String?, title: String, details: String) -> Unit,
+    onAddResolution: (
+        answerId: String?,
+        newLabel: String?,
+        title: String,
+        details: String,
+        snippetLabel: String,
+        snippetText: String
+    ) -> Unit,
     onConnect: (answerId: String?, newLabel: String?, targetId: String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -221,7 +283,7 @@ private fun LinkDialog(
     fun proceed(answerId: String?, label: String?) {
         chosenAnswer = answerId
         if (label != null) newLabel = label
-        if (intent == LinkIntent.AddChild) composing = true else pickingTarget = true
+        if (intent == LinkIntent.Connect) pickingTarget = true else composing = true
     }
 
     if (composing) {
@@ -229,8 +291,16 @@ private fun LinkDialog(
         // the graph until this is confirmed, so a cancelled add leaves no
         // orphan node and no half-drawn branch behind.
         NewChildDialog(
-            onConfirm = { title, details ->
-                onAddChild(chosenAnswer, newLabel.ifBlank { null }, title, details)
+            resolution = intent == LinkIntent.AddResolution,
+            onConfirm = { title, details, snippetLabel, snippetText ->
+                if (intent == LinkIntent.AddResolution) {
+                    onAddResolution(
+                        chosenAnswer, newLabel.ifBlank { null },
+                        title, details, snippetLabel, snippetText
+                    )
+                } else {
+                    onAddChild(chosenAnswer, newLabel.ifBlank { null }, title, details)
+                }
             },
             // Choosing the condition is one tap and easy to get wrong. Going
             // back must not mean starting the whole action again.
@@ -288,7 +358,15 @@ private fun LinkDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (intent == LinkIntent.AddChild) "Add child under…" else "Which answer?") },
+        title = {
+            Text(
+                when (intent) {
+                    LinkIntent.AddChild -> "Add child under…"
+                    LinkIntent.AddResolution -> "Add resolution under…"
+                    LinkIntent.Connect -> "Which answer?"
+                }
+            )
+        },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 free.forEach { answer ->
@@ -323,19 +401,22 @@ private fun LinkDialog(
     )
 }
 
-/** Title and details for a question that does not exist yet. */
+/** Details for a question that does not exist yet. */
 @Composable
 private fun NewChildDialog(
-    onConfirm: (title: String, details: String) -> Unit,
+    resolution: Boolean,
+    onConfirm: (title: String, details: String, snippetLabel: String, snippetText: String) -> Unit,
     onBack: () -> Unit,
     onDismiss: () -> Unit
 ) {
     var title by remember { mutableStateOf("") }
     var details by remember { mutableStateOf("") }
+    var snippetLabel by remember { mutableStateOf("Ticket note") }
+    var snippetText by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("New question") },
+        title = { Text(if (resolution) "New resolution" else "New question") },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -353,11 +434,34 @@ private fun NewChildDialog(
                     label = { Text("Details") },
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                if (resolution) {
+                    // A resolution is usually where the wording lives, so the
+                    // snippet is offered here rather than left to a second trip
+                    // through the edit dialog.
+                    Text(
+                        "Text to copy (optional)",
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    OutlinedTextField(
+                        value = snippetLabel,
+                        onValueChange = { snippetLabel = it },
+                        label = { Text("Label") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = snippetText,
+                        onValueChange = { snippetText = it },
+                        label = { Text("Text") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(title, details) },
+                onClick = { onConfirm(title, details, snippetLabel, snippetText) },
                 enabled = title.isNotBlank()
             ) { Text("Add") }
         },

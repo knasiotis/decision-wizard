@@ -139,6 +139,39 @@ class GraphsViewModel(
 
     fun clearCreated() { _created.value = null }
 
+    private val _duplicating = MutableStateFlow<Pair<GraphEntity, String>?>(null)
+    /** The graph to copy and the name to offer for the copy. */
+    val duplicating: StateFlow<Pair<GraphEntity, String>?> = _duplicating.asStateFlow()
+
+    fun askDuplicate(graph: GraphEntity) {
+        viewModelScope.launch {
+            _duplicating.value = graph to
+                ImportPlanner.uniqueName("${graph.name} copy", repository.takenNames())
+        }
+    }
+
+    fun cancelDuplicate() { _duplicating.value = null }
+
+    /**
+     * A copy is a new lineage: fresh graphId, revision back to 1. Node ids are
+     * kept, being scoped to a single graph, so the copy stays recognisably the
+     * same flow.
+     */
+    fun duplicate(name: String) {
+        val (source, _) = _duplicating.value ?: return
+        _duplicating.value = null
+        viewModelScope.launch {
+            val graph = repository.load(source.graphId) ?: return@launch
+            val copy = graph.copy(
+                graphId = newId("g"),
+                name = ImportPlanner.uniqueName(name.trim(), repository.takenNames()),
+                revision = 1
+            )
+            repository.save(copy)
+            _message.value = "Copied to \"${copy.name}\"."
+        }
+    }
+
     fun askExport(graph: GraphEntity) {
         viewModelScope.launch {
             val loaded = repository.load(graph.graphId) ?: return@launch

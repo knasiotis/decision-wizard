@@ -1,6 +1,11 @@
 package com.knasiotis.decisionwizard.ui.editor
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.rememberTransformableState
@@ -21,30 +26,40 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.knasiotis.decisionwizard.R
@@ -52,6 +67,7 @@ import com.knasiotis.decisionwizard.layout.EdgeKind
 import com.knasiotis.decisionwizard.layout.GraphLayout
 import com.knasiotis.decisionwizard.layout.NODE_WIDTH
 import com.knasiotis.decisionwizard.layout.Position
+import com.knasiotis.decisionwizard.layout.StubChip
 import com.knasiotis.decisionwizard.model.Graph
 import com.knasiotis.decisionwizard.model.Issue
 import com.knasiotis.decisionwizard.ui.common.NameDialog
@@ -65,21 +81,41 @@ fun EditorScreen(
 ) {
     val ui by viewModel.state.collectAsStateWithLifecycle()
 
+    var scale by remember { mutableFloatStateOf(1f) }
+    var pan by remember { mutableStateOf(Offset.Zero) }
+    var selected by remember { mutableStateOf<String?>(null) }
+    var viewport by remember { mutableStateOf(IntSize.Zero) }
+
+    // The node to draw attention to, and a key that changes every time so the
+    // same node can be pointed at twice running.
+    var focused by remember { mutableStateOf<String?>(null) }
+    var focusKey by remember { mutableLongStateOf(0L) }
+
+    // Where a jump came from, so a second tap on a stub chip comes back.
+    val cameFrom = remember { mutableStateListOf<Offset>() }
+
+    // Where the canvas is gliding to, if anywhere.
+    var target by remember { mutableStateOf<Offset?>(null) }
+    val density = LocalDensity.current.density
+
+    val snackbars = remember { SnackbarHostState() }
     var confirmingExit by rememberSaveable { mutableStateOf(false) }
+    var renamingGraph by rememberSaveable { mutableStateOf(false) }
 
     // Leaving with unsaved work asks rather than guessing. Silently saving
     // would make experiments permanent; silently discarding would lose
     // hand-authored work. Only ask when there is actually something at stake.
     fun leave() {
+        // A jump is somewhere the user was taken, so back should undo that
+        // first rather than leaving the screen outright.
+        if (cameFrom.isNotEmpty()) {
+            target = cameFrom.removeAt(cameFrom.lastIndex)
+            return
+        }
         if (ui.dirty) confirmingExit = true else onBack()
     }
 
     BackHandler { leave() }
-
-    var scale by remember { mutableFloatStateOf(1f) }
-    var pan by remember { mutableStateOf(Offset.Zero) }
-    var selected by remember { mutableStateOf<String?>(null) }
-    var renamingGraph by rememberSaveable { mutableStateOf(false) }
 
     // Pan and zoom are never committed to the undo stack. Camera position is
     // not a document change.
@@ -92,8 +128,45 @@ fun EditorScreen(
         scale = next
     }
 
+    fun lookAt(nodeId: String, remember: Boolean) {
+        val position = ui.layout?.positions?.get(nodeId) ?: return
+        if (remember) cameFrom.add(pan)
+        // Centre the node: a point on screen is content * scale + pan.
+        target = Offset(
+            viewport.width / 2f - (position.x + NODE_WIDTH / 2) * scale * density,
+            viewport.height / 2f - (position.y + NODE_HEIGHT / 2) * scale * density
+        )
+        focused = nodeId
+        focusKey++
+    }
+
+    // Glide rather than jump, so it is obvious the canvas moved rather than
+    // redrew somewhere else.
+    LaunchedEffect(target) {
+        val destination = target ?: return@LaunchedEffect
+        val from = pan
+        animate(0f, 1f, animationSpec = tween(280)) { t, _ ->
+            pan = lerp(from, destination, t)
+        }
+        target = null
+    }
+
+    LaunchedEffect(ui.announcement?.id) {
+        val announcement = ui.announcement ?: return@LaunchedEffect
+        announcement.focusNodeId?.let { lookAt(it, remember = false) }
+
+        val result = snackbars.showSnackbar(
+            message = announcement.message,
+            actionLabel = if (announcement.undoable) "UNDO" else null,
+            withDismissAction = true
+        )
+        if (result == SnackbarResult.ActionPerformed) viewModel.undo()
+        viewModel.clearAnnouncement()
+    }
+
     Scaffold(
         modifier = modifier,
+        snackbarHost = { SnackbarHost(snackbars) },
         topBar = {
             TopAppBar(
                 title = {
@@ -136,6 +209,7 @@ fun EditorScreen(
                     .padding(insets)
                     .fillMaxSize()
                     .clipToBounds()
+                    .onSizeChanged { viewport = it }
                     .transformable(transform)
             ) {
                 Canvas(
@@ -143,7 +217,10 @@ fun EditorScreen(
                     layout = layout,
                     issuesByNode = ui.issuesByNode,
                     selected = selected,
+                    focused = focused,
+                    focusKey = focusKey,
                     onSelect = { selected = it },
+                    onJump = { lookAt(it, remember = true) },
                     modifier = Modifier.graphicsLayer {
                         scaleX = scale
                         scaleY = scale
@@ -211,7 +288,10 @@ private fun Canvas(
     layout: GraphLayout,
     issuesByNode: Map<String, List<Issue>>,
     selected: String?,
+    focused: String?,
+    focusKey: Long,
     onSelect: (String?) -> Unit,
+    onJump: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val edgeColour = MaterialTheme.colorScheme.outline
@@ -283,9 +363,12 @@ private fun Canvas(
                     isEndpoint = node.isEndpoint,
                     isOrphan = id in layout.orphans,
                     warnings = issuesByNode[id].orEmpty().size,
-                    chips = layout.chips.filter { it.onNodeId == id }.map { it.text },
+                    chips = layout.chips.filter { it.onNodeId == id },
                     selected = id == selected,
+                    focused = id == focused,
+                    focusKey = focusKey,
                     onClick = { onSelect(if (id == selected) null else id) },
+                    onChipClick = onJump,
                     modifier = Modifier.width(NODE_WIDTH.dp)
                 )
             }
@@ -326,14 +409,32 @@ private fun NodeBubble(
     isEndpoint: Boolean,
     isOrphan: Boolean,
     warnings: Int,
-    chips: List<String>,
+    chips: List<StubChip>,
     selected: Boolean,
+    focused: Boolean,
+    focusKey: Long,
     onClick: () -> Unit,
+    onChipClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colours = MaterialTheme.colorScheme
+
+    // Swells and settles once when pointed at. Arriving somewhere on a large
+    // canvas is otherwise indistinguishable from having been there all along.
+    val pulse = remember { Animatable(1f) }
+    LaunchedEffect(focusKey, focused) {
+        if (!focused) return@LaunchedEffect
+        pulse.animateTo(1.14f, tween(160))
+        pulse.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+    }
+
     Surface(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier
+            .graphicsLayer {
+                scaleX = pulse.value
+                scaleY = pulse.value
+            }
+            .clickable(onClick = onClick),
         shape = MaterialTheme.shapes.medium,
         // Orphans grey out rather than being hidden or refused; an unreachable
         // node is a legal state, not an error.
@@ -373,12 +474,16 @@ private fun NodeBubble(
             // Both ends of every stub. The inbound chip is what tells a user
             // something points here at all.
             chips.forEach { chip ->
+                // Tapping either end of a stub travels to the other. Without
+                // this the chip only says a link exists, which is the least
+                // useful thing it could say.
                 Text(
-                    chip,
+                    chip.text,
                     style = MaterialTheme.typography.labelSmall,
                     color = colours.tertiary,
                     maxLines = 1,
                     modifier = Modifier
+                        .clickable { onChipClick(chip.otherNodeId) }
                         .background(colours.tertiaryContainer.copy(alpha = 0.4f))
                         .padding(horizontal = 4.dp, vertical = 1.dp)
                 )

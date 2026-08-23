@@ -41,6 +41,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.knasiotis.decisionwizard.R
 import com.knasiotis.decisionwizard.data.GraphEntity
+import com.knasiotis.decisionwizard.ui.common.NameDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,6 +59,7 @@ fun GraphsScreen(
     val conflict by viewModel.conflict.collectAsStateWithLifecycle()
     val pendingDelete by viewModel.pendingDelete.collectAsStateWithLifecycle()
     val exportRequest by viewModel.exportRequest.collectAsStateWithLifecycle()
+    val duplicating by viewModel.duplicating.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
 
     val snackbars = remember { SnackbarHostState() }
@@ -132,6 +134,7 @@ fun GraphsScreen(
                     GraphCard(
                         graph = graph,
                         onOpen = { onOpenEditor(graph.graphId) },
+                        onCopy = { viewModel.askDuplicate(graph) },
                         onExport = { viewModel.askExport(graph) },
                         onDelete = { viewModel.askDelete(graph) }
                     )
@@ -159,6 +162,17 @@ fun GraphsScreen(
                 }
             },
             confirmButton = { TextButton(onClick = { creating = false }) { Text("Cancel") } }
+        )
+    }
+
+    duplicating?.let { (_, suggested) ->
+        NameDialog(
+            dialogTitle = "Copy graph",
+            fieldLabel = "Graph name",
+            initial = suggested,
+            confirmLabel = "Copy",
+            onConfirm = viewModel::duplicate,
+            onDismiss = viewModel::cancelDuplicate
         )
     }
 
@@ -241,6 +255,7 @@ private fun EmptyLibrary(modifier: Modifier = Modifier) {
 private fun GraphCard(
     graph: GraphEntity,
     onOpen: () -> Unit,
+    onCopy: () -> Unit,
     onExport: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -269,6 +284,7 @@ private fun GraphCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = onCopy) { Text("Copy") }
                     TextButton(onClick = onExport) { Text("Export") }
                     TextButton(onClick = onDelete) { Text("Delete") }
                 }

@@ -256,11 +256,15 @@ private fun ChatRoute(
     val vm: ChatViewModel = viewModel(
         key = key,
         factory = viewModelFactory {
-            initializer { ChatViewModel(app.repository, sessionId, graphId, initialTitle) }
+            initializer {
+                ChatViewModel(app.repository, app.files, sessionId, graphId, initialTitle)
+            }
         }
     )
 
     val ui by vm.state.collectAsStateWithLifecycle()
+    val exportName by vm.exportName.collectAsStateWithLifecycle()
+    val message by vm.message.collectAsStateWithLifecycle()
 
     when {
         ui.loading -> Unit
@@ -276,7 +280,13 @@ private fun ChatRoute(
             onAnswer = vm::answer,
             onRewindAndAnswer = vm::rewindAndAnswer,
             onRename = vm::rename,
-            onRestart = vm::restart
+            onRestart = vm::restart,
+            exportName = exportName,
+            onAskExport = vm::askExport,
+            onExportTo = vm::exportTo,
+            onCancelExport = vm::cancelExport,
+            message = message,
+            onClearMessage = vm::clearMessage
         )
     }
 }

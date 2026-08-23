@@ -1,9 +1,12 @@
 package com.knasiotis.decisionwizard.ui.chat
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.knasiotis.decisionwizard.chat.ChatEngine
 import com.knasiotis.decisionwizard.chat.ChatState
+import com.knasiotis.decisionwizard.chat.Transcript
+import com.knasiotis.decisionwizard.data.FileGateway
 import com.knasiotis.decisionwizard.data.LibraryRepository
 import com.knasiotis.decisionwizard.model.Graph
 import com.knasiotis.decisionwizard.model.newId
@@ -11,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 data class ChatUiState(
     /** Null once the graph has been deleted; answered turns still render. */
@@ -30,6 +34,7 @@ data class ChatUiState(
  */
 class ChatViewModel(
     private val repository: LibraryRepository,
+    private val files: FileGateway,
     private val sessionId: String?,
     private val graphId: String?,
     private val initialTitle: String = ""
@@ -102,6 +107,46 @@ class ChatViewModel(
         val next = ChatEngine.rewindAndAnswer(graph, current.session, stepIndex, answerId) ?: return
         apply(graph, next)
     }
+
+    private val _exportName = MutableStateFlow<String?>(null)
+    val exportName: StateFlow<String?> = _exportName.asStateFlow()
+
+    private val _message = MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = _message.asStateFlow()
+
+    fun askExport() {
+        _exportName.value = Transcript.fileName(
+            _state.value.title,
+            LocalDate.now().toString()
+        )
+    }
+
+    fun cancelExport() { _exportName.value = null }
+
+    /**
+     * Written from the record alone, so a transcript still exports after the
+     * graph is gone — which is exactly when someone needs it.
+     */
+    fun exportTo(uri: Uri) {
+        val ui = _state.value
+        _exportName.value = null
+        viewModelScope.launch {
+            val text = Transcript.format(
+                state = ui.session,
+                title = ui.title,
+                graphName = ui.graphName,
+                exportedAt = LocalDate.now().toString()
+            )
+            _message.value = try {
+                files.write(uri, text.toByteArray())
+                "Transcript saved."
+            } catch (e: Exception) {
+                "Could not write the transcript."
+            }
+        }
+    }
+
+    fun clearMessage() { _message.value = null }
 
     fun restart() {
         val graph = _state.value.graph ?: return
