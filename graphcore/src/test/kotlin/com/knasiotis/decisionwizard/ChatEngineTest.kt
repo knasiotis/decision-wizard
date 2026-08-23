@@ -263,3 +263,29 @@ class ChatRecordTest {
         assertEquals("Reseat it properly", ChatEngine.turns(switched).last().question)
     }
 }
+
+/** The stored shape is a migration barrier, so it needs holding still. */
+class ChatStateFormatTest {
+
+    private val json = kotlinx.serialization.json.Json
+
+    @Test
+    fun `the version is always written, even at the default`() {
+        val encoded = json.encodeToString(ChatState.serializer(), ChatState())
+        assertTrue(encoded.contains("\"version\""), "missing version marker in: $encoded")
+    }
+
+    /** A chat stored before the marker existed must still read. */
+    @Test
+    fun `a stored chat with no version reads as version 1`() {
+        val old = """{"answered":[],"current":null}"""
+        assertEquals(1, json.decodeFromString(ChatState.serializer(), old).version)
+    }
+
+    /** Detectable, so a future build can refuse it rather than half-read it. */
+    @Test
+    fun `a newer version is readable enough to be recognised`() {
+        val future = """{"version":99,"answered":[],"current":null}"""
+        assertEquals(99, json.decodeFromString(ChatState.serializer(), future).version)
+    }
+}

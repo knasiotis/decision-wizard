@@ -504,19 +504,23 @@ to match `<kotlin>-<ksp>` (e.g. `2.2.21-2.0.5`); that scheme is gone, and there 
 no `2.4.10-*` build to hunt for. KSP and the Room Gradle plugin both apply
 cleanly on top of AGP 9's built-in Kotlin.
 
-**Bump the Room version when the shape of `stateJson` changes**, not only when a
-column does. The graph body and the chat state are JSON blobs — a locked
-decision — and Room cannot see inside them, so it keeps rows the new code cannot
-parse. That shipped a build which crashed on launch until the user cleared the
-app's data. Loading a session now also refuses an unparseable row instead of
-throwing: one bad row must never take the app down.
+**Migrations are mandatory from version 5 onwards.** There is no destructive
+fallback: a missing migration fails loudly on launch rather than quietly deleting
+hand-authored graphs that cannot be recovered. Migrations live in
+`data/Migrations.kt`.
 
-**The database currently destroys itself on any schema change.**
-`fallbackToDestructiveMigration` is on **temporarily**, because nobody depends on
-this database yet and migration code written only to preserve throwaway test data
-is not worth carrying. **Delete that line and write real migrations the moment
-anyone keeps graphs they care about** — graphs are hand-authored and cannot be
-re-downloaded.
+**Two things count as a schema change, and the second catches people out.** A
+column, table or index is the obvious one. The other is **the shape of anything
+inside a blob column** — `graphs.body` and `sessions.stateJson` are JSON, and
+Room cannot see inside them, so it keeps rows this build cannot parse. A build
+shipped that crashed on launch for exactly that reason. Prefer changes old data
+still parses under (a new field with a default) over ones needing a rewrite;
+where a rewrite is unavoidable, bump the version and migrate the rows.
+
+`ChatState` carries a `CHAT_STATE_VERSION` marker, always written, so a stored
+chat from a newer build is *detectable* rather than merely unparseable. Loading
+refuses a newer version instead of half-reading it, and refuses an unreadable row
+instead of throwing.
 
 **Room schemas are committed** under `app/schemas/` and the database
 deliberately has **no `fallbackToDestructiveMigration`**, so a missing migration

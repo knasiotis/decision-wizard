@@ -28,18 +28,10 @@ abstract class DecisionWizardDatabase : RoomDatabase() {
 
         private fun build(context: Context): DecisionWizardDatabase =
             Room.databaseBuilder(context, DecisionWizardDatabase::class.java, NAME)
-                // NOTE: bump the version whenever the *shape of stateJson*
-                // changes, not only when a column does. Room cannot see inside a
-                // blob, so it will happily keep rows this build cannot parse.
-                //
-                // TEMPORARY, and it must not survive first real use.
-                //
-                // Nobody depends on this database yet, so a schema change wipes
-                // it instead of carrying migration code that exists only to
-                // preserve throwaway test data. The moment anyone keeps graphs
-                // they care about, delete this line and write real migrations —
-                // graphs are hand-authored and cannot be re-downloaded.
-                .fallbackToDestructiveMigration(dropAllTables = true)
+                // No destructive fallback. Graphs are hand-authored and cannot
+                // be re-downloaded, so a missing migration must fail loudly
+                // rather than silently wipe them. See Migrations.kt.
+                .addMigrations(*MIGRATIONS)
                 .build()
     }
 }

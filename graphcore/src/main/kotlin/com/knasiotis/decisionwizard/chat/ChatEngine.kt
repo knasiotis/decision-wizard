@@ -1,9 +1,22 @@
+@file:OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+
 package com.knasiotis.decisionwizard.chat
 
 import com.knasiotis.decisionwizard.model.Graph
 import com.knasiotis.decisionwizard.model.Node
 import com.knasiotis.decisionwizard.model.Snippet
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
+
+/**
+ * Stamped into every stored chat so a future change of shape is detectable.
+ *
+ * `stateJson` lives in a blob column, and Room cannot see inside a blob — it
+ * will keep rows a newer build wrote and an older one cannot read. Without this
+ * marker the only symptom is a parse failure, which is how a build once crashed
+ * on launch. Bump it whenever the recorded shape changes incompatibly.
+ */
+const val CHAT_STATE_VERSION = 1
 
 /** One answer as it was offered at the time it was offered. */
 @Serializable
@@ -39,6 +52,10 @@ data class Answered(
  */
 @Serializable
 data class ChatState(
+    // Always written, even when it equals the default: a stored chat with no
+    // version at all is indistinguishable from one predating the marker.
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    val version: Int = CHAT_STATE_VERSION,
     val answered: List<Answered> = emptyList(),
     /** The question waiting for an answer, as it was put. Null at a dead end. */
     val current: TurnRecord? = null

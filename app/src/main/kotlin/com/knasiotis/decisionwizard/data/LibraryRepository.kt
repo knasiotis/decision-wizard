@@ -1,5 +1,6 @@
 package com.knasiotis.decisionwizard.data
 
+import com.knasiotis.decisionwizard.chat.CHAT_STATE_VERSION
 import com.knasiotis.decisionwizard.chat.ChatState
 import com.knasiotis.decisionwizard.library.GraphSummary
 import com.knasiotis.decisionwizard.model.Graph
@@ -85,7 +86,12 @@ class LibraryRepository(
         // to take the app down on launch.
         val state = runCatching {
             Json.decodeFromString(ChatState.serializer(), row.stateJson)
-        }.getOrNull() ?: return null
+        }.getOrNull()
+            // A chat written by a newer build than this one. Refused rather than
+            // half-read, which would silently drop whatever it did not
+            // understand.
+            ?.takeIf { it.version <= CHAT_STATE_VERSION }
+            ?: return null
 
         val live = load(row.graphId)
 
