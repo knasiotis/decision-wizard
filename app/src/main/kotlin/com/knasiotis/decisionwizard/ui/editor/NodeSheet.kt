@@ -58,7 +58,12 @@ fun NodeSheet(
 
             SheetAction("Edit") { editing = true }
             SheetAction("Add child") { linking = LinkIntent.AddChild }
-            SheetAction("Connect to existing") { linking = LinkIntent.Connect }
+            // Nothing to connect to on a graph that holds only this question —
+            // offering it would open an empty list. It returns as soon as there
+            // is a second question, including on the root.
+            if (graph.nodes.any { it.id != node.id }) {
+                SheetAction("Connect to existing") { linking = LinkIntent.Connect }
+            }
             SheetAction("Delete") { deleting = true }
         }
     }
