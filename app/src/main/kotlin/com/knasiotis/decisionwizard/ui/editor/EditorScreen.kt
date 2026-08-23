@@ -1,5 +1,6 @@
 package com.knasiotis.decisionwizard.ui.editor
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.rememberTransformableState
@@ -51,6 +52,17 @@ fun EditorScreen(
 ) {
     val ui by viewModel.state.collectAsStateWithLifecycle()
 
+    // Leaving saves. Graphs are hand-authored work, and losing an edit silently
+    // because the user did not spot a Save button is worse than an extra
+    // revision. Undo is the escape hatch, per the project's preference for undo
+    // over confirmation dialogs.
+    fun leave() {
+        viewModel.save()
+        onBack()
+    }
+
+    BackHandler { leave() }
+
     var scale by remember { mutableFloatStateOf(1f) }
     var pan by remember { mutableStateOf(Offset.Zero) }
     var selected by remember { mutableStateOf<String?>(null) }
@@ -80,7 +92,7 @@ fun EditorScreen(
                         }
                     )
                 },
-                navigationIcon = { TextButton(onClick = onBack) { Text("Back") } },
+                navigationIcon = { TextButton(onClick = { leave() }) { Text("Back") } },
                 actions = {
                     TextButton(onClick = viewModel::undo, enabled = ui.canUndo) { Text("Undo") }
                     TextButton(onClick = viewModel::redo, enabled = ui.canRedo) { Text("Redo") }

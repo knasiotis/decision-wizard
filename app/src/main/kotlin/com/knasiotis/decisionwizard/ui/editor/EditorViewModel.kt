@@ -13,6 +13,7 @@ import com.knasiotis.decisionwizard.model.GraphValidator
 import com.knasiotis.decisionwizard.model.Issue
 import com.knasiotis.decisionwizard.model.Node
 import com.knasiotis.decisionwizard.model.newId
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -41,7 +42,8 @@ data class EditorUiState(
  */
 class EditorViewModel(
     private val repository: LibraryRepository,
-    private val graphId: String
+    private val graphId: String,
+    private val appScope: CoroutineScope
 ) : ViewModel() {
 
     private var editor: GraphEditor? = null
@@ -72,11 +74,20 @@ class EditorViewModel(
     }
 
     /** Bumps the revision, which is what makes the other person's import offer an update. */
+    /**
+     * Runs on the application scope, not the ViewModel's: leaving the editor
+     * pops the nav entry and cancels the ViewModel, which would abort a save
+     * started by that very departure.
+     */
     fun save() {
-        val graph = editor?.graph ?: return
-        viewModelScope.launch {
+        val editor = editor ?: return
+        if (!_state.value.dirty) return
+        val graph = editor.graph
+        _state.value = _state.value.copy(dirty = false)
+        appScope.launch {
+            // The revision bump is what makes the other person's import offer an
+            // update rather than a duplicate.
             repository.save(graph.copy(revision = graph.revision + 1))
-            _state.value = _state.value.copy(dirty = false)
         }
     }
 
