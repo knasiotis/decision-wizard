@@ -91,21 +91,25 @@ fun DecisionWizardApp(
         }
     }
 
-    // Runs once. A tapped file always wins over the launch preference — the user
-    // asked for that file, not for whatever they were doing last.
-    var launchHandled by remember { mutableStateOf(false) }
+    // Anything the user does themselves outranks the launch preference. Reading
+    // the setting, pruning and finding the last session all suspend, and tapping
+    // "New chat" inside that window used to be interrupted by this navigating
+    // away underneath the open dialog.
+    var userActed by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
-        if (launchHandled || pendingImportUri != null) {
-            launchHandled = true
-            return@LaunchedEffect
-        }
-        launchHandled = true
+        // A tapped file always wins too — the user asked for that file, not for
+        // whatever they were doing last.
+        if (pendingImportUri != null) return@LaunchedEffect
 
         // Apply the retention setting before deciding what to open, or a chat
         // that is about to be pruned could be the one we resume into.
         app.repository.pruneSessions(app.settings.chatRetentionDays.first())
+        val behaviour = app.settings.launchBehaviour.first()
 
-        when (app.settings.launchBehaviour.first()) {
+        if (userActed) return@LaunchedEffect
+
+        when (behaviour) {
             // "Start a new chat" means choosing what it runs on.
             LaunchBehaviour.NEW_CHAT ->
                 navController.navigate(Routes.GRAPHS) { launchSingleTop = true }
@@ -161,7 +165,11 @@ fun DecisionWizardApp(
                 )
                 ChatsScreen(
                     viewModel = vm,
-                    onOpenChat = { navController.navigate(Routes.resumeChat(it)) },
+                    onUserActed = { userActed = true },
+                    onOpenChat = {
+                        userActed = true
+                        navController.navigate(Routes.resumeChat(it))
+                    },
                     onStartChat = { graphId, title ->
                         navController.navigate(Routes.newChat(graphId, title))
                     }

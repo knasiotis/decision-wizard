@@ -31,8 +31,10 @@ class ChatsViewModel(
 ) : ViewModel() {
 
     /** Backs the new-chat picker: which graph should this chat run on. */
-    val graphs: StateFlow<List<GraphSummary>> = repository.summaries()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    // Null until the first query returns, so the picker does not flash
+    // "No graphs yet" at someone who has plenty.
+    val graphs: StateFlow<List<GraphSummary>?> = repository.summaries()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val chats: StateFlow<List<ChatSummary>?> = repository.sessionList()
         .map { rows -> rows.map { it.toSummary() } }

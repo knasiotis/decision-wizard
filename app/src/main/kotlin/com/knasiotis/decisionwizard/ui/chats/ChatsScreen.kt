@@ -42,6 +42,8 @@ fun ChatsScreen(
     viewModel: ChatsViewModel,
     onOpenChat: (String) -> Unit,
     onStartChat: (graphId: String, title: String) -> Unit,
+    /** Tells the host the user is driving, so startup navigation stands down. */
+    onUserActed: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val chats by viewModel.chats.collectAsStateWithLifecycle()
@@ -58,7 +60,10 @@ fun ChatsScreen(
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = { picking = true },
+                onClick = {
+                    onUserActed()
+                    picking = true
+                },
                 text = { Text("New chat") },
                 icon = {}
             )
@@ -125,7 +130,7 @@ fun ChatsScreen(
 /** Which graph should the new chat run on. */
 @Composable
 private fun GraphPickerDialog(
-    graphs: List<GraphSummary>,
+    graphs: List<GraphSummary>?,
     onPick: (GraphSummary) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -135,15 +140,26 @@ private fun GraphPickerDialog(
     // likely to type "down" as "inter". Trimmed so a stray space matches nothing.
     val matches = remember(graphs, query) {
         val q = query.trim()
-        if (q.isEmpty()) graphs else graphs.filter { it.name.contains(q, ignoreCase = true) }
+        val all = graphs.orEmpty()
+        if (q.isEmpty()) all else all.filter { it.name.contains(q, ignoreCase = true) }
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (graphs.isEmpty()) "No graphs yet" else "Start a chat on…") },
+        title = {
+            Text(
+                when {
+                    graphs == null -> "Start a chat on…"
+                    graphs.isEmpty() -> "No graphs yet"
+                    else -> "Start a chat on…"
+                }
+            )
+        },
         text = {
-            if (graphs.isEmpty()) {
-                Text("Import a graph on the Graphs tab first, then a chat can run on it.")
+            if (graphs == null) {
+                Text("Loading…")
+            } else if (graphs.isEmpty()) {
+                Text("Add a graph on the Graphs tab first, then a chat can run on it.")
             } else {
                 Column {
                     OutlinedTextField(
