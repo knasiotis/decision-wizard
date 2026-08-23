@@ -1,138 +1,122 @@
-# tgraph
+# Decision Wizard 🧙
 
-![Vibe Coded](https://img.shields.io/badge/vibe--coded-yes-blueviolet)
-![Built with Claude](https://img.shields.io/badge/built%20with-Claude-d97757)
-![Platform](https://img.shields.io/badge/platform-Android-3ddc84)
-![License](https://img.shields.io/badge/license-MIT-informational)
+An offline Android app for support agents. It turns a troubleshooting flowchart
+into a chat: the bot asks a question, you tap an answer, it asks the next one —
+and at the end it hands you the exact wording to paste into the ticket.
 
-An Android app that walks you through troubleshooting steps, one question at a time.
+> [!TIP]
+> **🤖 This is a vibe coded project.** It was built conversationally with an AI
+> assistant, start to finish. It works and it is tested, but it was not designed
+> on a whiteboard first — expect the shape of it to reflect that.
 
----
+## The problem
 
-## What it actually does
+Troubleshooting scripts live in a wiki page nobody reads, a PDF nobody can
+search, or someone's head. Two agents handling the same fault do different
+things, write different ticket notes, and escalate with different information.
 
-If you work in support, you probably have a few routines in your head. *Is the
-router on? No — check the power supply. Yes — what colour is the internet light?*
-You follow the same paths over and over, and occasionally you skip a step because
-you were rushing.
+Decision Wizard makes the script something you *walk through* rather than
+something you *remember*:
 
-This app holds those routines for you.
+- **One question at a time.** No scrolling a document looking for where you are.
+- **The wording comes with it.** Each step can carry ready-made text — a ticket
+  note, an escalation summary, a closing comment — with a copy button.
+- **The chat is a record.** What was asked and answered is kept exactly as it
+  happened, so it can be exported into the ticket. Editing the flow afterwards
+  never rewrites history.
+- **Flows are files.** Build one, send it to a colleague, they import it. No
+  server, no account, no sync service.
 
-**In the chat**, a bot asks you one question and gives you buttons to answer. You
-tap one, and it asks the next appropriate question. You keep going until you reach
-an outcome — a fix, or an escalation. Any step can carry a ready-made note you can
-copy straight into the ticket.
+**No network. No telemetry. No permissions.** Check the manifest — the app asks
+for nothing.
 
-**In the editor**, you build those routines yourself. You add a question, give it
-some answers, and attach a follow-up question to each answer. It draws the whole
-thing as a map you can pan and zoom around.
+## Download 📦
 
-Two things worth knowing:
+Grab the latest signed APK from the
+[**Releases**](https://github.com/knasiotis/decision-wizard/releases) page.
 
-- **Paths can rejoin.** Four different routes can all end up at "reseat the cable"
-  without you writing it out four times.
-- **You can loop back.** "Did that fix it? No → go back to step 3" is allowed.
+Updates work well with [Obtainium](https://github.com/ImranR98/Obtainium) —
+point it at this repository and it will track releases for you.
 
-## What it is not
+Requires Android 12 or newer.
 
-**There is no AI in this app.** The bot is not a language model and does not think.
-It reads the flowchart you drew and follows it. It has no internet connection, it
-sends nothing anywhere, and it will only ever say things you typed into it yourself.
+## Features ✨
 
-That is deliberate. When you are on a call with a customer, you want the same
-question every time, not a plausible-sounding improvisation. It works offline, it
-works on a plane, it works when the vendor's API is down, and it gives the same
-answer today and in five years.
+**Chat**
+- Walk a flow one question at a time, with wrapping answer buttons
+- Copy a whole snippet, or select part of it
+- Tap any earlier answer to rewind and take a different branch
+- Chats are named, resumable, and survive their graph being deleted (read-only)
+- Export a chat as plain text for the ticket
+- Optional automatic clean-up of old chats
 
----
+**Editor**
+- Zoomable canvas, laid out automatically — nodes are never dragged
+- Add questions, add resolutions, connect to existing questions
+- Four ways to delete: splice, delete only, delete and clean up, or reparent
+- Undo and redo, with a message saying what changed and where
+- Long links are shown as chips on both ends; tap one to jump to the other
 
-## Using it
+**Library**
+- Several flows side by side; create, copy, import, export, delete
+- Import decides for you: a newer revision offers an update, anything else
+  offers a copy
+- Back up every flow to a `.zip`, and restore from one
 
-**Graphs** tab — your library of flows. Create one, or import a `.tgraph` file
-someone sent you.
+## Flows are hand-editable 📝
 
-**Editing** — the canvas shows your flow as bubbles connected by arrows. Tap a
-bubble to open it, or select it to reveal edit, add child, connect to existing, and
-delete. Layout is automatic: you pan and zoom, you don't drag nodes around.
+A `.dwiz` file is plain JSON. Open it in any text editor:
 
-Connections that jump a long way, or loop backwards, aren't drawn as arrows — they'd
-cross the whole screen. They show as small labels on both ends instead:
-`No ↩ check cable` on the node it leaves, `↪ from: is it fixed?` on the node it
-arrives at. Tap either to jump between them.
-
-**Chats** tab — start a session, pick a graph, answer questions. Tap any earlier
-answer to rewind to that point. Export the transcript when you're done.
-
-Nothing stops you from building a graph with loops, dead ends, or unreachable nodes.
-You get warnings, not walls. Undo and redo are in the editor toolbar.
-
-## Sharing routines
-
-Each flow exports as a single `.tgraph` file — a zip containing `graph.json` and an
-`assets/` folder for images. Send it to a colleague, they tap it, it opens in their
-copy of the app. They can edit it however they like. There is no account, no server,
-and nothing syncs behind your back.
-
-The JSON has no coordinates in it, because layout is computed rather than stored —
-so you can also write one by hand in a text editor and it will render correctly.
-A full worked example is in `graphcore/graph-schema-example.json`.
-
----
-
-## Install
-
-**Recommended:** install [Obtainium](https://github.com/ImranR98/Obtainium), add
-this repository as a source, and it will track releases and update automatically.
-
-**Manual:** grab the APK from the [latest release](../../releases/latest). Android
-will ask you to allow installing from an unknown source — that's expected for
-anything outside the Play Store. There is no Play Store listing and no plan for one.
-
-## Building it yourself
-
-```
-git clone <this repo>
-./gradlew assembleDebug
+```json
+{
+  "schemaVersion": 1,
+  "graphId": "0f9c2a6e-4b31-4d8a-9f2e-77c1a0e5b310",
+  "name": "Internet down",
+  "revision": 7,
+  "rootNodeId": "n-power",
+  "nodes": [
+    {
+      "id": "n-power",
+      "title": "Is the router powered on?",
+      "body": "Ask the customer to look at the power LED on the front panel.",
+      "answers": [
+        { "id": "e-1", "label": "Yes", "targetNodeId": "n-lights" },
+        { "id": "e-2", "label": "No",  "targetNodeId": "n-plug" }
+      ]
+    }
+  ]
+}
 ```
 
-Debug builds sign themselves. Release builds expect `KEYSTORE_B64`,
-`KEYSTORE_PASSWORD`, `KEY_ALIAS` and `KEY_PASSWORD` in the environment, and fall
-back to the debug config when those are absent.
+A worked example lives in [`samples/`](samples/). Cycles, reconvergence and
+half-built branches are all legal — the app warns, it does not refuse.
 
-Tests are JVM-only, no emulator required:
+## Screenshots 📸
 
+Not included yet. Worth adding, in this order:
+
+1. **A chat mid-flow** — a question, its answer buttons, and a snippet with the
+   copy button. This is the one that explains the app.
+2. **The canvas** — a flow with a branch and a cycle, showing the stub chips.
+3. **The node sheet** — the actions available on a question.
+4. **The library** — a few flows side by side.
+
+## Building 🔨
+
+```bash
+./gradlew :graphcore:test        # core logic, no Android needed
+./gradlew :app:assembleDebug
 ```
-./gradlew test
-```
 
----
+`:graphcore` is a pure-Kotlin module holding the graph model, layout engine,
+traversal, validation and file format — all unit-tested on the JVM. `:app` is
+Compose and Room on top of it.
 
-## ⚠️ Disclaimer: this is a vibe coded project
+Releases are built and signed by GitHub Actions on a version tag.
 
-A meaningful amount of this was designed and written in conversation with an LLM
-(Claude), by someone learning Kotlin on the way. The architecture was argued about,
-the trade-offs were real, and the reasoning is documented in `HANDOVER.md` — but
-nobody should mistake that for the same thing as years of Android experience.
+## Licence ⚖️
 
-Practically, this means:
+**GNU General Public License v3.0** — see [LICENSE](LICENSE).
 
-- **It has not been professionally reviewed or audited.** Assume there are bugs in
-  places nobody has looked yet.
-- It works, on the phones it has been tried on, for the graphs it has been given.
-  The edge cases that have been tested are in `app/src/test/`. The ones that haven't
-  been tested are everywhere else.
-- Some of it is probably more clever than it needed to be, and some of it is
-  probably naive in ways that will be obvious to someone who knows better.
-- **It is a personal tool, shared in case it is useful.** It is not a supported
-  product and there is no guarantee it keeps working.
-- **Don't put anything sensitive in it.** Your flows live in a local database and in
-  files you export yourself. Nothing is uploaded anywhere, which is the one
-  guarantee this project can make with total confidence, because there is no server
-  to upload it to. Customer data still doesn't belong here.
-- **Use at your own risk.** If it gives you the wrong troubleshooting step, that's
-  because someone drew the flowchart wrong — including possibly me.
-
-This notice is here because being open about it seems better than quietly shipping
-it and hoping nobody asks. If you find something broken, an issue is welcome. If you
-find something architecturally cursed, an issue is *extremely* welcome. If you fork
-it, fix it, or rewrite it properly, please do.
+Icons are traced from [Lucide](https://lucide.dev) (ISC); see
+[NOTICE.md](NOTICE.md).

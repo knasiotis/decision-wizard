@@ -4,8 +4,9 @@ Working notes for an agent in this repo. This is the single source of truth for
 design intent *and* mechanics — it absorbed the old `HANDOVER.md`, which has been
 deleted. If you learn something not written here, add it.
 
-`README.md` is **not trusted**. It predates the current structure and is to be
-rewritten from scratch once the app exists. Do not cite it, do not patch it.
+`README.md` was rewritten for v0.5 and is current. It is the outward-facing
+description — what the app is for and how to get it — while this file holds the
+design reasoning. Keep them apart: decisions and rationale belong here.
 
 ---
 
