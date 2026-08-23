@@ -350,24 +350,25 @@ configuration error.
 Keep the release asset named `decision-wizard-<tag>.apk`. Obtainium matches on a
 stable asset name; changing it breaks update detection on installed devices.
 
-### One-time keystore setup
+### Keystore — done and proven
 
-Not yet done. Generate the keystore and never commit it — `*.jks` and
-`*.keystore` are gitignored:
+The four secrets (`KEYSTORE_B64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`,
+`KEY_PASSWORD`) are set, and a `workflow_dispatch` rehearsal on 2026-08-23
+produced a verified signed APK with no tag and no release.
 
-```bash
-keytool -genkeypair -v -keystore release.jks -alias decision-wizard \
-  -keyalg RSA -keysize 4096 -validity 10000
+Key: RSA 4096, alias `decision-wizard`, valid to Jan 2054.
+Fingerprint `SHA256: 03:1C:7B:71:87:0A:E3:D0:B7:23:74:74:53:F9:0D:54:B8:7E:22:CD:41:73:13:F6:45:9D:0D:91:80:D7:BF:8D`.
+**Every future release must show this fingerprint.** A different one means the
+wrong key is in the secrets, and anything signed with it cannot update an
+installed app.
 
-base64 -w0 release.jks    # paste as the KEYSTORE_B64 secret
-```
+The keystore lives outside the repo in `~/decision-wizard-signing/` and is backed
+up. It is unrecoverable: lose it and no future build can update an installed
+app, because Android refuses an update signed by a different key. The only
+remedy is uninstall and reinstall, which destroys the user's graphs and history.
 
-Then set four repository secrets: `KEYSTORE_B64`, `KEYSTORE_PASSWORD`,
-`KEY_ALIAS`, `KEY_PASSWORD`.
-
-**Back up `release.jks` somewhere durable.** Losing it means no future build can
-update an installed app — Android refuses an update signed by a different key,
-and the only fix is uninstall and reinstall, which drops all user data.
+Re-run the rehearsal any time the secrets change, rather than finding out on a
+tag.
 
 ---
 
@@ -462,14 +463,13 @@ dynamic colour, and that the app requests no permissions.
 
 Not done, in the order agreed:
 
-1. **Keystore and the four repository secrets** (see CI section), then run the
-   **Release** workflow manually (`workflow_dispatch`) as a signing rehearsal.
-   That proves the keystore and secrets while the app is still small, and
-   creates no tag — the first real tag is `v0.2.0`.
-2. **Raise `targetSdk` to 37.** Held at 36 only because the app had not run on a
-   device; it now has.
-3. **v0.2.0** — Room, the graph library screen, and `.dwiz` import/export. The
-   first tagged release.
+1. **v0.2.0** — Room, the graph library screen, and `.dwiz` import/export. The
+   first tagged release, and the next real work.
+2. **Consider raising `targetSdk` to 37** as part of v0.2's device testing, not
+   before. It is held at 36 only out of caution; nothing needs it, there is no
+   Play Store deadline behind it since distribution is Obtainium, and bumping it
+   opts into API 37 runtime behaviour that would need re-checking on hardware.
+   Cheaper to fold that into a test pass you are doing anyway.
 4. **Wire `GraphEditor.graph` to `mutableStateOf`** so recomposition fires. It is
    currently a plain `var` and will not trigger a redraw. Needed for v0.3, but
    easy to forget because it compiles fine.
