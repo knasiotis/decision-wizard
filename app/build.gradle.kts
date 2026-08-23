@@ -70,9 +70,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_21
     }
 
-    // The single canonical copy of the sample graph, shared with :graphcore's
-    // test resources rather than duplicated here.
-    sourceSets["main"].assets.directories.add(rootProject.file("samples").absolutePath)
+    // No bundled sample graph. v0.1 shipped one because there was no library to
+    // put anything in; from v0.2 a fresh install starts empty and the empty
+    // state points at import. samples/ lives on as the :graphcore test fixture.
 }
 
 dependencies {
@@ -89,6 +89,8 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.navigation.compose)
 
     implementation(libs.room.runtime)
     ksp(libs.room.compiler)

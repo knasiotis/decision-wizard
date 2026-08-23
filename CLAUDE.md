@@ -403,10 +403,13 @@ no `2.4.10-*` build to hunt for. KSP and the Room Gradle plugin both apply
 cleanly on top of AGP 9's built-in Kotlin.
 
 **Room schemas are committed** under `app/schemas/` and the database
-deliberately has **no `fallbackToDestructiveMigration`**. These graphs are the
-user's own work and cannot be re-downloaded, so a missing migration must fail
-loudly rather than silently wipe them. v0.3 will need a real migration and the
-committed schema is what it diffs against.
+deliberately has **no `fallbackToDestructiveMigration`**, so a missing migration
+fails loudly rather than silently wiping the user's own hand-authored graphs.
+
+**But do not invest in a v0.2 → v0.3 migration.** Nobody will be running v0.2 in
+anger before v0.3 lands, so if the schema changes, bump the version and reinstall
+rather than writing migration code for data that does not exist. The strictness
+above is for v0.3 onwards, once there is real work in the database.
 
 **SDK platform packages now carry a minor version.** `platforms;android-37` does
 not exist — the packages are `platforms;android-37.0` and `platforms;android-37.1`.
