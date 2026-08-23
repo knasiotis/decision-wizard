@@ -1,5 +1,6 @@
 package com.knasiotis.decisionwizard.ui
 
+import android.content.ClipData
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -25,13 +26,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import com.knasiotis.decisionwizard.chat.ChatEngine
 import com.knasiotis.decisionwizard.chat.ChatState
 import com.knasiotis.decisionwizard.chat.ChatTurn
@@ -147,7 +150,10 @@ private fun Turn(turn: ChatTurn, onAnswer: (String) -> Unit) {
 
 @Composable
 private fun SnippetCard(snippet: Snippet) {
-    val clipboard = LocalClipboardManager.current
+    // LocalClipboard rather than the deprecated LocalClipboardManager. The new
+    // API is suspend-based, hence the scope.
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -160,7 +166,15 @@ private fun SnippetCard(snippet: Snippet) {
                 color = MaterialTheme.colorScheme.primary
             )
             Text(snippet.text, style = MaterialTheme.typography.bodyMedium)
-            TextButton(onClick = { clipboard.setText(AnnotatedString(snippet.text)) }) {
+            TextButton(
+                onClick = {
+                    scope.launch {
+                        clipboard.setClipEntry(
+                            ClipEntry(ClipData.newPlainText(snippet.label, snippet.text))
+                        )
+                    }
+                }
+            ) {
                 Text("Copy")
             }
         }
