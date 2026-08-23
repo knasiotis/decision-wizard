@@ -526,11 +526,6 @@ instead of throwing.
 deliberately has **no `fallbackToDestructiveMigration`**, so a missing migration
 fails loudly rather than silently wiping the user's own hand-authored graphs.
 
-**But do not invest in a v0.2 → v0.3 migration.** Nobody will be running v0.2 in
-anger before v0.3 lands, so if the schema changes, bump the version and reinstall
-rather than writing migration code for data that does not exist. The strictness
-above is for v0.3 onwards, once there is real work in the database.
-
 **SDK platform packages now carry a minor version.** `platforms;android-37` does
 not exist — the packages are `platforms;android-37.0` and `platforms;android-37.1`.
 `sdkmanager` reports a bare `android-37` as "Failed to find package", which reads
