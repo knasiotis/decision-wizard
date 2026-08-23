@@ -14,13 +14,20 @@ val buildVersionCode = providers.gradleProperty("versionCode")
 
 android {
     namespace = "com.knasiotis.decisionwizard"
-    compileSdk = 36
+    // Forced by the dependencies, not chosen: Compose 1.12 / core-ktx 1.19 /
+    // lifecycle 2.11 all refuse to be consumed below 37. Raising compileSdk only
+    // permits newer APIs to be called; it is independent of targetSdk, which is
+    // what actually opts the app into new runtime behaviour.
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.knasiotis.decisionwizard"
         // 31 so Material You dynamic colour needs no version guard. Everything
         // else in the app works fine lower; this is the only reason.
         minSdk = 31
+        // Deliberately one below compileSdk. Bumping this opts into API 37's
+        // runtime behaviour changes, and the app has never run on a device yet.
+        // Raise it once v0.1 has actually been installed and tried.
         targetSdk = 36
         versionCode = buildVersionCode.orNull?.toInt() ?: 1
         versionName = buildVersionName.orNull ?: "dev"

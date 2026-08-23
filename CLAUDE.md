@@ -33,7 +33,7 @@ Argued through and settled. Do not revisit without being asked.
 | Platform | Android only, forever. No iOS, no desktop, no KMP. |
 | Language / UI | Kotlin + Jetpack Compose, Material 3 |
 | Application id | `com.knasiotis.decisionwizard` |
-| SDK levels | `minSdk 31`, `targetSdk`/`compileSdk 36` |
+| SDK levels | `minSdk 31`, `targetSdk 36`, `compileSdk 37` |
 | Persistence | Room for graph library + chat sessions; graph body stored as a JSON blob column |
 | Serialization | `kotlinx.serialization` |
 | Node placement | **Auto-layout.** The user pans and zooms. Nodes are never dragged. |
@@ -372,6 +372,14 @@ task-execution time, so `./gradlew :app:assembleDebug` will validate the whole
 build script and fail at "SDK location not found". That failure is the expected
 local outcome and is still a useful check — it catches every Kotlin DSL error
 before a push. It does **not** compile the Compose sources; only CI does that.
+
+**`compileSdk` is dictated by the dependencies, not chosen.** AndroidX artifacts
+declare a minimum consumer `compileSdk` in their AAR metadata, and the build
+fails at `checkDebugAarMetadata` — before any Kotlin is compiled — if it is too
+low. Compose 1.12, core-ktx 1.19 and lifecycle 2.11 all demand 37. When bumping
+any AndroidX version, expect to bump `compileSdk` with it. It is safe to do so:
+`compileSdk` only governs which APIs can be *called*, independently of
+`targetSdk`, which is what opts the app into new runtime behaviour.
 
 **Android sourceset `srcDir` is deprecated in AGP 9.** Use
 `assets.directories.add(...)`, and note it takes a **String path, not a File**.
