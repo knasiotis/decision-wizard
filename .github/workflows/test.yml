@@ -1,8 +1,12 @@
 name: Test
 
-# :graphcore is a pure-JVM module, so this job needs no Android SDK and no
-# emulator. That is the whole point of the module split: the fast check stays
-# fast. Typically well under a minute once the Gradle cache is warm.
+# :graphcore tests need no Android SDK and are the fast inner loop.
+#
+# :app is also assembled here, and that matters: it cannot be built on the
+# developer machine at all, so without this step nothing would compile it until
+# a release tag — and a tag failing to build is the worst place to find out.
+# The debug APK is kept as an artifact so a build can be sideloaded and tried
+# without cutting a release.
 
 on:
   push:
@@ -42,10 +46,18 @@ jobs:
       # Deliberately no --no-daemon anywhere: it defeats this action's caching.
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Run graphcore tests
-        run: ./gradlew :graphcore:test
+      # One invocation so both share a daemon and the cache.
+      - name: Test core and build the app
+        run: ./gradlew :graphcore:test :app:assembleDebug
 
-      - name: Upload report on failure
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: decision-wizard-debug
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+
+      - name: Upload test report on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:

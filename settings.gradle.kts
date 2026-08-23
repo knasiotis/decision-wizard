@@ -23,3 +23,4 @@ dependencyResolutionManagement {
 rootProject.name = "decision-wizard"
 
 include(":graphcore")
+include(":app")

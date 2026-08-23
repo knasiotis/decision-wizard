@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A decision graph: one question branching into two, one of which branches again.
+  Adaptive-icon foregrounds are 108dp with the outer 18dp trimmed on all sides,
+  so everything meaningful stays inside the middle 72dp.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- edges, drawn first so the nodes sit on top -->
+    <path
+        android:pathData="M54,38 L36,56 M54,38 L72,56 M72,56 L72,72"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.5"
+        android:strokeAlpha="0.85"
+        android:strokeLineCap="round" />
+
+    <!-- root -->
+    <path
+        android:pathData="M54,30m-8,0a8,8 0 1,0 16,0a8,8 0 1,0 -16,0"
+        android:fillColor="#FFFFFF" />
+    <!-- left endpoint -->
+    <path
+        android:pathData="M36,62m-6.5,0a6.5,6.5 0 1,0 13,0a6.5,6.5 0 1,0 -13,0"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.75" />
+    <!-- right branch -->
+    <path
+        android:pathData="M72,62m-6.5,0a6.5,6.5 0 1,0 13,0a6.5,6.5 0 1,0 -13,0"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.75" />
+    <!-- leaf -->
+    <path
+        android:pathData="M72,78m-6.5,0a6.5,6.5 0 1,0 13,0a6.5,6.5 0 1,0 -13,0"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.55" />
+</vector>

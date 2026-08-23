@@ -33,6 +33,7 @@ Argued through and settled. Do not revisit without being asked.
 | Platform | Android only, forever. No iOS, no desktop, no KMP. |
 | Language / UI | Kotlin + Jetpack Compose, Material 3 |
 | Application id | `com.knasiotis.decisionwizard` |
+| SDK levels | `minSdk 31`, `targetSdk`/`compileSdk 36` |
 | Persistence | Room for graph library + chat sessions; graph body stored as a JSON blob column |
 | Serialization | `kotlinx.serialization` |
 | Node placement | **Auto-layout.** The user pans and zooms. Nodes are never dragged. |
@@ -233,9 +234,18 @@ graphcore/                   pure-JVM module, com.knasiotis.decisionwizard.*
   src/main/kotlin/.../model/    Models.kt, GraphValidator.kt
   src/main/kotlin/.../layout/   GraphLayout.kt
   src/main/kotlin/.../editor/   UndoStack.kt, DeleteOps.kt
-  src/test/kotlin/.../          Fixtures.kt + 3 test classes, 25 tests
+  src/main/kotlin/.../chat/     ChatEngine.kt
+  src/test/kotlin/.../          Fixtures.kt + 4 test classes, 39 tests
+app/                         Android module, Compose UI only
+  src/main/kotlin/.../          MainActivity.kt, ui/Theme.kt, ui/ChatScreen.kt
 samples/graph-schema-example.json
 ```
+
+**Traversal lives in `:graphcore`, not in the UI.** `ChatEngine` is pure logic
+and fully unit-tested; `ChatScreen` only renders it. Session state
+(`ChatState`) holds no graph reference, so it serialises on its own — that is
+what makes rotation survival and, later, Room-backed resumable sessions cheap.
+Keep new logic on that side of the line.
 
 `samples/` holds the **one canonical copy** of the sample graph. `:graphcore`
 picks it up as a test resource via a `srcDir` in its build file; `:app` should
@@ -287,7 +297,7 @@ Two workflows in `.github/workflows/`.
 
 | Workflow | Trigger | Does |
 |---|---|---|
-| `test.yml` | push to main, PRs (docs ignored) | `:graphcore:test` — no Android SDK needed, so it stays fast |
+| `test.yml` | push to main, PRs (docs ignored) | `:graphcore:test` **and** `:app:assembleDebug`, uploading the debug APK |
 | `release.yml` | tag `v*` only | signed APK, attached to a GitHub Release |
 
 **The repo is public, so Actions minutes are free and unmetered.** The lean setup
@@ -299,32 +309,16 @@ workflow.
 Do not add `--no-daemon` to CI Gradle calls — it defeats `setup-gradle`'s
 caching. (Locally it is fine and used.)
 
-### What `:app` must implement for `release.yml` to work
+### The release contract
 
-`release.yml` cannot succeed until `:app` exists. **Do not tag a release before
-then.** When building `:app`, it has to honour this contract:
+Implemented in `app/build.gradle.kts`. `release.yml` supplies `-PversionName`
+and `-PversionCode` plus four keystore environment variables; the build reads
+them all through `providers.*` rather than `System.getenv` / `findProperty`,
+because the root `gradle.properties` enables the configuration cache and direct
+reads at configuration time invalidate it.
 
-- Read `-PversionName` and `-PversionCode` project properties, falling back to
-  sane defaults for local builds.
-- A `release` signing config reading `KEYSTORE_PATH`, `KEYSTORE_PASSWORD`,
-  `KEY_ALIAS`, `KEY_PASSWORD` from the environment.
-- Output an APK under `app/build/outputs/apk/release/`.
-
-```kotlin
-val ksPath = System.getenv("KEYSTORE_PATH")
-signingConfigs {
-    if (ksPath != null) create("release") {
-        storeFile = file(ksPath)
-        storePassword = System.getenv("KEYSTORE_PASSWORD")
-        keyAlias = System.getenv("KEY_ALIAS")
-        keyPassword = System.getenv("KEY_PASSWORD")
-    }
-}
-defaultConfig {
-    versionCode = (findProperty("versionCode") as String?)?.toInt() ?: 1
-    versionName = (findProperty("versionName") as String?) ?: "dev"
-}
-```
+A local release build with no `KEYSTORE_PATH` is simply unsigned rather than a
+configuration error.
 
 Keep the release asset named `decision-wizard-<tag>.apk`. Obtainium matches on a
 stable asset name; changing it breaks update detection on installed devices.
@@ -367,6 +361,21 @@ edit elsewhere in the graph can make a stub chip jump to the other side of a
 cycle. Never write a test that hardcodes which edge is the stub — assert that
 the cycle is broken *somewhere* and that stubs are reciprocal.
 
+**AGP 9 provides Kotlin itself.** Applying `org.jetbrains.kotlin.android` in
+`:app` is a **hard error**, not a warning — there is deliberately no
+`kotlin-android` alias in the version catalog. `:graphcore` is a plain JVM module
+and still uses `kotlin-jvm` normally. The Compose compiler plugin applies on top
+of AGP's built-in Kotlin without issue.
+
+**`:app` configures locally but cannot execute.** AGP 9 only needs the SDK at
+task-execution time, so `./gradlew :app:assembleDebug` will validate the whole
+build script and fail at "SDK location not found". That failure is the expected
+local outcome and is still a useful check — it catches every Kotlin DSL error
+before a push. It does **not** compile the Compose sources; only CI does that.
+
+**Android sourceset `srcDir` is deprecated in AGP 9.** Use
+`assets.directories.add(...)`, and note it takes a **String path, not a File**.
+
 **`nodeHeightOf` must only ever receive real node ids.** It is backed by measured
 composables in the editor, so a synthetic id would throw or silently return a
 wrong height. `LayoutEngineTest.strictHeights` throws on an unknown id
@@ -402,15 +411,17 @@ Ship each stage as a real signed APK before starting the next one.
 Done: Gradle scaffold, `:graphcore` compiling and green at 25 tests, package
 renamed off `com.example.tgraph`, four bugs found and fixed (see git history).
 
-CI is written: `test.yml` works today, `release.yml` is ready but inert until
-`:app` exists.
+v0.1 is written: chat, traversal, rewind-by-tapping-a-past-answer, snippet copy,
+the bundled sample graph, and both CI workflows.
+
+**The Compose sources have never been compiled** — no local Android SDK. CI is
+the first thing that will build them, so expect the first push to need fixes.
 
 Not done, in the order agreed:
 
-1. **The `:app` module and v0.1's chat screen.** Must honour the CI contract
-   above. Cannot be built locally — push and let CI compile it.
-2. **Keystore and the four repository secrets** (see CI section). Needed before
-   the first tag.
+1. **Push and get `test.yml` green.** Nothing has compiled `:app` yet.
+2. **Keystore and the four repository secrets** (see CI section), then tag
+   `v0.1.0` for the first signed APK.
 3. **Wire `GraphEditor.graph` to `mutableStateOf`** so recomposition fires. It is
    currently a plain `var` and will not trigger a redraw. Needed for v0.3, but
    easy to forget because it compiles fine.
