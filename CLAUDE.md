@@ -443,22 +443,29 @@ Ship each stage as a real signed APK before starting the next one.
 
 ## Current state
 
-Done: Gradle scaffold, `:graphcore` compiling and green at 25 tests, package
-renamed off `com.example.tgraph`, four bugs found and fixed (see git history).
-
-**v0.1 is done and verified on a real device.** Chat, traversal, rewind, snippet
-copy, text selection, the bundled sample graph, and both CI workflows. Manually
-confirmed: launch, clipboard copy, walking the cycle, rotation, rewind, chip
-wrapping, endpoints, dynamic colour, and that the app requests no permissions.
+**v0.1 is done and verified on a real device.** Gradle scaffold, `:graphcore`
+green at 39 tests, four bugs found and fixed (see git history), chat, traversal,
+rewind, snippet copy, text selection, the bundled sample graph, and both CI
+workflows passing. Manually confirmed on hardware: launch, clipboard copy,
+walking the cycle, rotation, rewind, chip wrapping, endpoints, text selection,
+dynamic colour, and that the app requests no permissions.
 
 Not done, in the order agreed:
 
 1. **Keystore and the four repository secrets** (see CI section), then tag
-   `v0.1.0` for the first signed APK.
-3. **Wire `GraphEditor.graph` to `mutableStateOf`** so recomposition fires. It is
+   `v0.1.0` for the first signed APK. This closes out the actual point of the
+   v0.1 milestone: proving the release pipeline while the app is small.
+2. **Raise `targetSdk` to 37.** Held at 36 only because the app had not run on a
+   device; it now has.
+3. **v0.2** — Room, the graph library screen, and `.dwiz` import/export.
+4. **Wire `GraphEditor.graph` to `mutableStateOf`** so recomposition fires. It is
    currently a plain `var` and will not trigger a redraw. Needed for v0.3, but
    easy to forget because it compiles fine.
-4. Rewrite `README.md` from scratch.
+5. Rewrite `README.md` from scratch.
+
+Note for whoever picks up the first release: the signed `v0.1.0` APK **cannot be
+installed over the debug build** — different signing keys, so Android refuses the
+upgrade. Uninstall the debug build first.
 
 ### Open questions
 
