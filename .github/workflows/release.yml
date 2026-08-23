@@ -84,12 +84,20 @@ jobs:
       - name: Verify signature (dry run)
         if: github.ref_type != 'tag'
         run: |
-          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
+          # Exclude the unsigned variant explicitly. AGP emits
+          # app-release-unsigned.apk when no signing config applied, and picking
+          # it up blindly would let an unsigned build look like a success.
+          APK=$(find app/build/outputs/apk/release -name '*.apk' ! -name '*unsigned*' | head -1)
+          if [ -z "$APK" ]; then
+            echo "::error::no signed APK produced — the keystore secrets did not reach Gradle"
+            exit 1
+          fi
           echo "built: $APK"
-          case "$APK" in
-            *unsigned*) echo "::error::APK is unsigned — the keystore secrets did not take effect"; exit 1 ;;
-          esac
-          "$ANDROID_HOME"/build-tools/*/apksigner verify --print-certs "$APK"
+          # The runner has several build-tools versions installed, so an
+          # unquoted glob expands to multiple paths and apksigner reads the
+          # second as a command. Pick the newest deliberately.
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs "$APK"
 
       - name: Upload signed APK (dry run)
         if: github.ref_type != 'tag'
@@ -104,9 +112,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
+          # Same exclusion as the dry run: never publish the unsigned variant.
+          APK=$(find app/build/outputs/apk/release -name '*.apk' ! -name '*unsigned*' | head -1)
           if [ -z "$APK" ]; then
-            echo "::error::no APK produced"
+            echo "::error::no signed APK produced — refusing to publish"
             exit 1
           fi
           # Obtainium matches on a stable asset name, so keep this format.
