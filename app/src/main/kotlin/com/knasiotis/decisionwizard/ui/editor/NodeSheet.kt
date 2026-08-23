@@ -51,6 +51,13 @@ fun NodeSheet(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(node.title, style = MaterialTheme.typography.titleMedium)
+            if (node.isEndpoint) {
+                Text(
+                    "A resolution — the flow ends here.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
             Text(
                 inboundSummary(graph, node.id),
                 style = MaterialTheme.typography.bodySmall,
@@ -72,14 +79,22 @@ fun NodeSheet(
             HorizontalDivider()
 
             SheetAction("Edit") { editing = true }
-            SheetAction("Add child") { linking = LinkIntent.AddChild }
-            SheetAction("Add resolution") { linking = LinkIntent.AddResolution }
-            // Nothing to connect to on a graph that holds only this question —
-            // offering it would open an empty list. It returns as soon as there
-            // is a second question, including on the root.
-            if (graph.nodes.any { it.id != node.id }) {
-                SheetAction("Connect to existing") { linking = LinkIntent.Connect }
+
+            // A resolution is the end of the flow. Every one of these actions
+            // works by giving the question an answer, and a question with an
+            // answer is no longer an endpoint — so offering them here would
+            // quietly undo the thing the user asked for.
+            if (!node.isEndpoint) {
+                SheetAction("Add child") { linking = LinkIntent.AddChild }
+                SheetAction("Add resolution") { linking = LinkIntent.AddResolution }
+                // Nothing to connect to on a graph that holds only this question
+                // — offering it would open an empty list. It returns as soon as
+                // there is a second question, including on the root.
+                if (graph.nodes.any { it.id != node.id }) {
+                    SheetAction("Connect to existing") { linking = LinkIntent.Connect }
+                }
             }
+
             SheetAction("Delete") { deleting = true }
         }
     }
