@@ -91,6 +91,26 @@ Points that matter:
 
 ---
 
+## A chat is a record, not a view of the graph
+
+**Answered turns store their own wording.** `Answered` carries the question,
+detail, snippets and the options as they were offered at the moment the answer
+was taken. Editing or deleting a graph afterwards must never rewrite what was
+said — a chat is a record of a conversation that happened, and a script rewrite
+does not change a recording of the performance.
+
+**Only the live question is resolved against the graph**, at the moment of
+interaction. So the next step always follows the flow as it is now, while every
+step already taken is fixed. Re-answering an earlier question goes through the
+same path, so a rewind follows the current flow too.
+
+`ChatEngine.turns(graph, state)` therefore takes a **nullable** graph: with none
+— because it was deleted — the record still renders in full, minus the live
+question. That is what makes a chat outlive its graph, and it is why sessions
+need no snapshot of the graph body, only its name for the header.
+
+---
+
 ## Layout and edge rendering
 
 Implementation: `graphcore/.../layout/GraphLayout.kt` (`object LayoutEngine`).
@@ -557,7 +577,7 @@ Shipped as test builds `v0.2.1` … `v0.2.4` on the `v0.2` branch.
 | Bundled example graph | **Dropped.** A fresh install starts empty; the empty state carries first-run. `samples/` lives on as the `:graphcore` test fixture. |
 | Chat sessions | Persisted in Room. Written only once something has been answered — saving on open would fill the list with empty sessions, and an unanswered session has nothing to resume. |
 | App launch | DataStore preference: resume last-opened session, or go to Graphs to start a new chat. A tapped `.dwiz` always wins over it. |
-| Deleting a **graph** | **Chats survive as read-only records.** Reversed in v0.3: the cascade and the foreign key are gone, and each session carries a `graphSnapshot` so it can still be rendered. A chat is history; deleting the flow it ran on should not erase what was answered. |
+| Deleting a **graph** | **Chats survive as read-only records.** Reversed in v0.3: the cascade and the foreign key are gone. A chat is history; deleting the flow it ran on should not erase what was answered. |
 | Deleting a **chat** | Deletes only the chat, and says so. A chat card is named after its graph, so it carries a "Chat" label and its button reads "Delete chat". |
 | Starting a chat | The **New chat** button on Chats, with a searchable graph picker. Graph cards are deliberately not clickable. |
 | Node list / node detail | Cut. They exist to support the v0.3 editor. |

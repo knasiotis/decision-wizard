@@ -43,7 +43,9 @@ data class SessionListRow(
     val sessionId: String,
     val graphId: String,
     val title: String,
-    /** Null once the graph has been deleted. */
+    /** Copied into the session, so it survives the graph. */
+    val storedGraphName: String,
+    /** Null once the graph has been deleted — this is the live one. */
     val graphName: String?,
     /** Null once the graph has been deleted. */
     val graphRevision: Int?,
@@ -64,6 +66,7 @@ interface SessionDao {
         SELECT s.sessionId       AS sessionId,
                s.graphId         AS graphId,
                s.title           AS title,
+               s.graphName       AS storedGraphName,
                g.name            AS graphName,
                g.revision        AS graphRevision,
                s.graphRevision   AS sessionRevision,

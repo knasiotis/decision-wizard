@@ -27,11 +27,11 @@ data class GraphEntity(
 )
 
 /**
- * A chat session. Stores only the answers taken, not the questions.
+ * A chat session: a record of a conversation that happened.
  *
  * Deliberately **no** foreign key to graphs. A chat outlives its graph: when the
  * graph is deleted the chat becomes a read-only record rather than disappearing.
- * That is only possible because [graphSnapshot] carries enough to render it.
+ * Every answered turn stores its own wording, so the record stands on its own.
  */
 @Entity(
     tableName = "sessions",
@@ -47,19 +47,18 @@ data class SessionEntity(
      */
     val title: String,
     /**
-     * The revision this session was answered against. If the graph is later
-     * updated, ChatEngine.turns() already skips nodes that no longer exist, so
-     * an old session degrades rather than crashing — but this records that it
-     * happened.
+     * The revision this session last ran against. Answered turns are unaffected
+     * by later edits — they carry their own wording — so this exists only to
+     * tell the user the flow has moved on since.
      */
     val graphRevision: Int,
     val stateJson: String,
     /**
-     * The graph as it stood when this chat was last answered. Only used once the
-     * live graph is gone — while it exists the chat follows it, so edits show up
-     * in an open chat rather than being frozen at first answer.
+     * The graph's name, copied here so a chat can still say what it ran on after
+     * the graph is deleted. No snapshot of the graph itself is needed: every
+     * answered turn already carries its own wording.
      */
-    val graphSnapshot: String,
+    val graphName: String,
     val startedAt: Long,
     val lastOpenedAt: Long
 )

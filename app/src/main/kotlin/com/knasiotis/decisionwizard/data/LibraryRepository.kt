@@ -14,7 +14,9 @@ import kotlinx.serialization.json.Json
  */
 /** A resumed session and everything needed to render it. */
 data class LoadedSession(
-    val graph: Graph,
+    /** Null once the graph has been deleted. The record still renders without it. */
+    val graph: Graph?,
+    val graphName: String,
     val state: ChatState,
     val title: String,
     val startedAt: Long,
@@ -70,17 +72,17 @@ class LibraryRepository(
     suspend fun mostRecentSession(): SessionEntity? = sessions.mostRecentlyOpened()
 
     /**
-     * Prefers the live graph so edits show up in an open chat. Falls back to the
-     * snapshot only once the graph is gone, and says so, because a chat that
+     * The live graph if it still exists, so the next question follows the flow
+     * as it is now. Its absence is reported rather than hidden: a chat that
      * cannot be continued must not look like one that can.
      */
     suspend fun loadSession(sessionId: String): LoadedSession? {
         val row = sessions.byId(sessionId) ?: return null
         val live = load(row.graphId)
-        val graph = live ?: runCatching { parseGraph(row.graphSnapshot) }.getOrNull() ?: return null
 
         return LoadedSession(
-            graph = graph,
+            graph = live,
+            graphName = live?.name ?: row.graphName,
             state = Json.decodeFromString(ChatState.serializer(), row.stateJson),
             title = row.title,
             startedAt = row.startedAt,
@@ -105,9 +107,7 @@ class LibraryRepository(
                 title = title,
                 graphRevision = graph.revision,
                 stateJson = Json.encodeToString(ChatState.serializer(), state),
-                // Written on every save so a deleted graph leaves a readable
-                // record rather than an unrenderable row.
-                graphSnapshot = graph.toJson(),
+                graphName = graph.name,
                 startedAt = startedAt,
                 lastOpenedAt = now()
             )

@@ -95,7 +95,7 @@ class ChatEngineTest {
         assertEquals(1, state.answered.count { it.nodeId == "n-cable" }, "answered once so far")
         assertEquals(
             2,
-            ChatEngine.turns(graph, state).count { it.node.id == "n-cable" },
+            ChatEngine.turns(graph, state).count { it.nodeId == "n-cable" },
             "the transcript shows the node twice: once answered, once live"
         )
     }
@@ -109,13 +109,13 @@ class ChatEngineTest {
         val state = assertNotNull(ChatEngine.answer(g, ChatEngine.start(g), "e1"))
 
         assertNull(state.currentNodeId)
-        assertTrue(ChatEngine.isDeadEnd(g, state))
+        assertTrue(ChatEngine.isDeadEnd(state))
         assertFalse(ChatEngine.isFinished(g, state))
     }
 
     @Test
     fun `a fresh session is not a dead end`() {
-        assertFalse(ChatEngine.isDeadEnd(graph, ChatEngine.start(graph)))
+        assertFalse(ChatEngine.isDeadEnd(ChatEngine.start(graph)))
     }
 
     @Test
@@ -124,7 +124,7 @@ class ChatEngineTest {
         val turns = ChatEngine.turns(graph, state)
 
         assertEquals(3, turns.size)
-        assertEquals(listOf("n-power", "n-lights", "n-cable"), turns.map { it.node.id })
+        assertEquals(listOf("n-power", "n-lights", "n-cable"), turns.map { it.nodeId })
         assertEquals(listOf(0, 1, -1), turns.map { it.stepIndex })
         assertTrue(turns.last().isLive)
         assertFalse(turns.first().isLive)
@@ -146,5 +146,90 @@ class ChatEngineTest {
         val json = kotlinx.serialization.json.Json.encodeToString(ChatState.serializer(), state)
         val back = kotlinx.serialization.json.Json.decodeFromString(ChatState.serializer(), json)
         assertEquals(state, back)
+    }
+}
+
+/**
+ * A chat is a record of a conversation that happened. Editing the graph
+ * afterwards must not rewrite what was said.
+ */
+class ChatRecordTest {
+
+    private val graph = Fixtures.example()
+
+    private fun ChatState.take(answerId: String): ChatState =
+        assertNotNull(ChatEngine.answer(graph, this, answerId), "answer $answerId refused")
+
+    @Test
+    fun `an answered turn keeps the wording it was answered with`() {
+        val state = ChatEngine.start(graph).take("e-1")
+
+        // The graph moves on: the question is reworded and an option renamed.
+        val edited = graph.replaceNode(
+            graph.byId.getValue("n-power").copy(title = "COMPLETELY DIFFERENT")
+        )
+
+        val turn = ChatEngine.turns(edited, state).first()
+        assertEquals("Is the router powered on?", turn.question)
+        assertEquals("Yes", turn.options.single { it.id == "e-1" }.label)
+    }
+
+    @Test
+    fun `a deleted question does not erase the turns already answered`() {
+        val state = ChatEngine.start(graph).take("e-1").take("e-7")
+        val without = graph.removeNode("n-power")
+
+        val turns = ChatEngine.turns(without, state)
+        assertEquals("Is the router powered on?", turns.first().question)
+        assertEquals(3, turns.size, "two records plus the live question")
+    }
+
+    /** With no graph at all the record is still a complete account. */
+    @Test
+    fun `the record renders without any graph`() {
+        val state = ChatEngine.start(graph).take("e-1").take("e-7")
+        val turns = ChatEngine.turns(null, state)
+
+        assertEquals(2, turns.size, "no live question without a graph")
+        assertTrue(turns.none { it.isLive })
+        assertEquals("Is the router powered on?", turns.first().question)
+    }
+
+    /** The next step is read from the graph as it is now, not as it was. */
+    @Test
+    fun `the live question follows the current graph`() {
+        val state = ChatEngine.start(graph).take("e-1")
+        val edited = graph.replaceNode(
+            graph.byId.getValue("n-lights").copy(title = "What colour now?")
+        )
+        assertEquals("What colour now?", ChatEngine.turns(edited, state).last().question)
+    }
+
+    @Test
+    fun `snippets are captured with the turn`() {
+        // n-power -> No -> n-plug, which carries a ticket note.
+        val state = ChatEngine.start(graph).take("e-2").take("e-4")
+        val plug = ChatEngine.turns(graph, state).single { it.nodeId == "n-plug" }
+        assertEquals(1, plug.snippets.size)
+    }
+
+    @Test
+    fun `a question deleted underneath the chat is reported as broken`() {
+        val state = ChatEngine.start(graph).take("e-1")
+        val without = graph.removeNode("n-lights")
+
+        assertTrue(ChatEngine.isBroken(without, state))
+        assertTrue(!ChatEngine.isBroken(graph, state))
+    }
+
+    @Test
+    fun `re-answering an earlier question follows the graph as it is now`() {
+        val state = ChatEngine.start(graph).take("e-1").take("e-5")
+        val edited = graph.replaceNode(
+            graph.byId.getValue("n-cable").copy(title = "Reseat it properly")
+        )
+
+        val switched = assertNotNull(ChatEngine.rewindAndAnswer(edited, state, 1, "e-7"))
+        assertEquals("Reseat it properly", ChatEngine.turns(edited, switched).last().question)
     }
 }

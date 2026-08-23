@@ -13,7 +13,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 data class ChatUiState(
+    /** Null once the graph has been deleted; answered turns still render. */
     val graph: Graph? = null,
+    val graphName: String = "",
     val session: ChatState = ChatState(),
     val title: String = "",
     /** The graph was deleted; this chat is a record and cannot be answered. */
@@ -53,17 +55,20 @@ class ChatViewModel(
             startedAt = resumed.startedAt
             // Sessions predating titles have none; fall back to the graph name
             // rather than showing an empty top bar.
-            val title = resumed.title.ifBlank { resumed.graph.name }
+            val title = resumed.title.ifBlank { resumed.graphName }
             _state.value = ChatUiState(
                 graph = resumed.graph,
+                graphName = resumed.graphName,
                 session = resumed.state,
                 title = title,
                 readOnly = resumed.readOnly,
                 loading = false
             )
-            if (resumed.readOnly) return
+            // A record cannot be reopened in any meaningful sense, and touching
+            // lastOpenedAt would reorder the list for no reason.
+            val graph = resumed.graph ?: return
             // Resuming counts as opening, so it moves to the top of the list.
-            persist(resumed.graph, resumed.state, title)
+            persist(graph, resumed.state, title)
             return
         }
 
@@ -74,6 +79,7 @@ class ChatViewModel(
         }
         _state.value = ChatUiState(
             graph = graph,
+            graphName = graph.name,
             session = ChatEngine.start(graph),
             title = initialTitle.ifBlank { graph.name },
             loading = false

@@ -234,13 +234,15 @@ private fun ChatRoute(
     )
 
     val ui by vm.state.collectAsStateWithLifecycle()
-    val graph = ui.graph
 
     when {
         ui.loading -> Unit
-        graph == null -> MissingGraph()
+        // Only a session that is genuinely gone shows nothing. A deleted graph
+        // still leaves a readable record.
+        ui.missing -> MissingGraph()
         else -> ChatScreen(
-            graph = graph,
+            graph = ui.graph,
+            graphName = ui.graphName,
             state = ui.session,
             title = ui.title,
             readOnly = ui.readOnly,

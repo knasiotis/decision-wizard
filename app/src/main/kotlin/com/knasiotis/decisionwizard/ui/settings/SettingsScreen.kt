@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.knasiotis.decisionwizard.BuildConfig
 import com.knasiotis.decisionwizard.data.ChatRetention
 import com.knasiotis.decisionwizard.data.LaunchBehaviour
 
@@ -156,6 +157,9 @@ fun SettingsScreen(viewModel: SettingsViewModel, modifier: Modifier = Modifier) 
                     onClick = { restorePicker.launch(arrayOf("*/*")) }
                 )
             }
+
+            SectionHeader("About")
+            About()
         }
     }
 
@@ -214,6 +218,41 @@ private fun CustomRetentionDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
+}
+
+@Composable
+private fun About() {
+    // Five taps on the version. Hidden, but not so hidden that nobody ever
+    // finds it.
+    var taps by remember { mutableStateOf(0) }
+    val revealed = taps >= 5
+
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Text(
+            "Decision Wizard ${BuildConfig.VERSION_NAME}",
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.clickable { taps++ }
+        )
+        Text(
+            "GNU General Public License v3.0",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            "Works entirely offline. No network, no accounts, no telemetry.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+        if (revealed) {
+            Text(
+                "Made in Yugoslavia",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 12.dp)
+            )
+        }
+    }
 }
 
 @Composable

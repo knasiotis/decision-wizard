@@ -50,7 +50,9 @@ import com.knasiotis.decisionwizard.model.Snippet
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
-    graph: Graph,
+    /** Null once the graph has been deleted; the record still renders. */
+    graph: Graph?,
+    graphName: String,
     state: ChatState,
     title: String,
     readOnly: Boolean,
@@ -65,7 +67,7 @@ fun ChatScreen(
     // the canvas layout follows.
     val turns = ChatEngine.turns(graph, state)
     val finished = ChatEngine.isFinished(graph, state)
-    val deadEnd = ChatEngine.isDeadEnd(graph, state)
+    val deadEnd = ChatEngine.isDeadEnd(state)
 
     val listState = rememberLazyListState()
     LaunchedEffect(turns.size, finished, deadEnd) {
@@ -89,11 +91,7 @@ fun ChatScreen(
                         // Which flow this chat runs on. A chat named "Tuesday
                         // callout" does not say, and that is what you need.
                         Text(
-                            text = if (readOnly) {
-                                "${graph.name} — deleted"
-                            } else {
-                                graph.name
-                            },
+                            text = if (readOnly) "$graphName — deleted" else graphName,
                             style = MaterialTheme.typography.labelMedium,
                             color = if (readOnly) {
                                 MaterialTheme.colorScheme.error
@@ -125,7 +123,7 @@ fun ChatScreen(
                 }
             }
 
-            items(turns, key = { "${it.stepIndex}:${it.node.id}" }) { turn ->
+            items(turns, key = { "${it.stepIndex}:${it.nodeId}" }) { turn ->
                 Turn(
                     turn = turn,
                     readOnly = readOnly,
@@ -179,23 +177,23 @@ private fun Turn(turn: ChatTurn, readOnly: Boolean, onAnswer: (String) -> Unit) 
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(turn.node.title, style = MaterialTheme.typography.titleMedium)
-                    if (turn.node.body.isNotBlank()) {
-                        Text(turn.node.body, style = MaterialTheme.typography.bodyMedium)
+                    Text(turn.question, style = MaterialTheme.typography.titleMedium)
+                    if (turn.detail.isNotBlank()) {
+                        Text(turn.detail, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
         }
 
-        turn.node.snippets.forEach { SnippetCard(it) }
+        turn.snippets.forEach { SnippetCard(it) }
 
-        if (turn.node.answers.isNotEmpty()) {
+        if (turn.options.isNotEmpty()) {
             // Wrapping, so two options and five options both look right.
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                turn.node.answers.forEach { answer ->
+                turn.options.forEach { answer ->
                     // Past answers stay tappable: tapping one rewinds the session
                     // to that question. Disabling them would strand the user.
                     FilterChip(
