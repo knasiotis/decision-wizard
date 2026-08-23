@@ -183,8 +183,12 @@ looks like a broken button.
 
 1. **Chats** — session list, resumable. FAB → graph picker → new chat.
 2. **Chat** — `LazyColumn`. Answer options as wrapping `FilterChip`s so 2 and 5
-   options both look right. Past answers stay visible but disabled; tapping one
-   **rewinds the session** to that point. Copy button on snippet bubbles.
+   options both look right. Past answers stay tappable; tapping one **rewinds the
+   session** to that question *and takes the tapped branch*, so correcting a wrong
+   turn is one gesture. Copy button on snippet bubbles for the whole snippet, plus
+   `SelectionContainer` on question and snippet text for partial selection.
+   Keep `SelectionContainer` around text only — wrapping the chips would make
+   long-press selection fight with tapping them.
 3. **Graphs** — library. Create / duplicate / import / export / delete.
 4. **Node list** — searchable, per graph, with validation badges. This is a
    maintenance view, not the primary authoring surface.
@@ -419,16 +423,14 @@ Ship each stage as a real signed APK before starting the next one.
 Done: Gradle scaffold, `:graphcore` compiling and green at 25 tests, package
 renamed off `com.example.tgraph`, four bugs found and fixed (see git history).
 
-v0.1 is written: chat, traversal, rewind-by-tapping-a-past-answer, snippet copy,
-the bundled sample graph, and both CI workflows.
-
-**The Compose sources have never been compiled** — no local Android SDK. CI is
-the first thing that will build them, so expect the first push to need fixes.
+**v0.1 is done and verified on a real device.** Chat, traversal, rewind, snippet
+copy, text selection, the bundled sample graph, and both CI workflows. Manually
+confirmed: launch, clipboard copy, walking the cycle, rotation, rewind, chip
+wrapping, endpoints, dynamic colour, and that the app requests no permissions.
 
 Not done, in the order agreed:
 
-1. **Push and get `test.yml` green.** Nothing has compiled `:app` yet.
-2. **Keystore and the four repository secrets** (see CI section), then tag
+1. **Keystore and the four repository secrets** (see CI section), then tag
    `v0.1.0` for the first signed APK.
 3. **Wire `GraphEditor.graph` to `mutableStateOf`** so recomposition fires. It is
    currently a plain `var` and will not trigger a redraw. Needed for v0.3, but

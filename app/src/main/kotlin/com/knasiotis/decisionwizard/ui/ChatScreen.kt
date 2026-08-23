@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -115,13 +116,18 @@ private fun Turn(turn: ChatTurn, onAnswer: (String) -> Unit) {
             contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             shape = MaterialTheme.shapes.large
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(turn.node.title, style = MaterialTheme.typography.titleMedium)
-                if (turn.node.body.isNotBlank()) {
-                    Text(turn.node.body, style = MaterialTheme.typography.bodyMedium)
+            // Selectable so an agent can lift a phrase out of a question, not
+            // just the whole snippet. Wraps only the text — the answer chips stay
+            // outside, or long-press selection would fight with tapping them.
+            SelectionContainer {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(turn.node.title, style = MaterialTheme.typography.titleMedium)
+                    if (turn.node.body.isNotBlank()) {
+                        Text(turn.node.body, style = MaterialTheme.typography.bodyMedium)
+                    }
                 }
             }
         }
@@ -165,7 +171,11 @@ private fun SnippetCard(snippet: Snippet) {
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary
             )
-            Text(snippet.text, style = MaterialTheme.typography.bodyMedium)
+            // Partial selection for pulling one line out of a long ticket note;
+            // the Copy button below still takes the whole thing in one tap.
+            SelectionContainer {
+                Text(snippet.text, style = MaterialTheme.typography.bodyMedium)
+            }
             TextButton(
                 onClick = {
                     scope.launch {
