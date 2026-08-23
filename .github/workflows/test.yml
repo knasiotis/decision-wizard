@@ -1,0 +1,54 @@
+name: Test
+
+# :graphcore is a pure-JVM module, so this job needs no Android SDK and no
+# emulator. That is the whole point of the module split: the fast check stays
+# fast. Typically well under a minute once the Gradle cache is warm.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - LICENSE
+      - .gitignore
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - LICENSE
+      - .gitignore
+
+# A new push supersedes the previous run for the same ref.
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  graphcore:
+    runs-on: ubuntu-latest    # 1x cost multiplier; never use macos (10x) or windows (2x)
+    timeout-minutes: 10       # a hung build cannot run away
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # Restores the Gradle build cache and configuration cache between runs.
+      # Deliberately no --no-daemon anywhere: it defeats this action's caching.
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Run graphcore tests
+        run: ./gradlew :graphcore:test
+
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: graphcore-test-report
+          path: graphcore/build/reports/tests/test
+          retention-days: 7

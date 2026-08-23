@@ -1,0 +1,87 @@
+name: Release
+
+# Tag push only. Nothing here runs on ordinary commits, so the expensive job
+# (which does need the Android SDK) happens a handful of times per month.
+#
+#   git tag v0.1.0 && git push origin v0.1.0
+#
+# versionName comes from the tag with the leading v stripped; versionCode comes
+# from github.run_number, which is monotonic per workflow and so never goes
+# backwards the way a date or a commit count can.
+#
+# NOTE: this workflow cannot succeed until the :app module exists. Do not tag
+# a release before then.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Never cancel a release midway through publishing.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write    # required to create the release and upload the APK
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Written to RUNNER_TEMP, never into the workspace, so it cannot be picked
+      # up by a stray `git add` or archived into an artifact.
+      - name: Decode keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::KEYSTORE_B64 secret is not set. See CLAUDE.md for how to create it."
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      # Tests run in the same Gradle invocation as the build so a broken core
+      # can never be published, at no extra runner startup cost.
+      - name: Build signed APK
+        env:
+          KEYSTORE_PATH: ${{ runner.temp }}/release.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          VERSION_NAME="${GITHUB_REF_NAME#v}"
+          ./gradlew :graphcore:test :app:assembleRelease \
+            -PversionName="$VERSION_NAME" \
+            -PversionCode="${{ github.run_number }}"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
+          if [ -z "$APK" ]; then
+            echo "::error::no APK produced"
+            exit 1
+          fi
+          # Obtainium matches on a stable asset name, so keep this format.
+          mv "$APK" "decision-wizard-${GITHUB_REF_NAME}.apk"
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            "decision-wizard-${GITHUB_REF_NAME}.apk"
+
+      - name: Remove keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"

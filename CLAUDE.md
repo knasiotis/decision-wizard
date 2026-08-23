@@ -281,6 +281,75 @@ Kotlin 2.4.10, kotlinx-serialization 1.11.0, JUnit 6.1.3.
 
 ---
 
+## CI
+
+Two workflows in `.github/workflows/`.
+
+| Workflow | Trigger | Does |
+|---|---|---|
+| `test.yml` | push to main, PRs (docs ignored) | `:graphcore:test` — no Android SDK needed, so it stays fast |
+| `release.yml` | tag `v*` only | signed APK, attached to a GitHub Release |
+
+**The repo is public, so Actions minutes are free and unmetered.** The lean setup
+below is for speed and for safety if the repo ever goes private, not for cost.
+If it does go private, the rules that matter are: `ubuntu-latest` only (macOS is
+10x, Windows 2x), tag-only release builds, and `cancel-in-progress` on the test
+workflow.
+
+Do not add `--no-daemon` to CI Gradle calls — it defeats `setup-gradle`'s
+caching. (Locally it is fine and used.)
+
+### What `:app` must implement for `release.yml` to work
+
+`release.yml` cannot succeed until `:app` exists. **Do not tag a release before
+then.** When building `:app`, it has to honour this contract:
+
+- Read `-PversionName` and `-PversionCode` project properties, falling back to
+  sane defaults for local builds.
+- A `release` signing config reading `KEYSTORE_PATH`, `KEYSTORE_PASSWORD`,
+  `KEY_ALIAS`, `KEY_PASSWORD` from the environment.
+- Output an APK under `app/build/outputs/apk/release/`.
+
+```kotlin
+val ksPath = System.getenv("KEYSTORE_PATH")
+signingConfigs {
+    if (ksPath != null) create("release") {
+        storeFile = file(ksPath)
+        storePassword = System.getenv("KEYSTORE_PASSWORD")
+        keyAlias = System.getenv("KEY_ALIAS")
+        keyPassword = System.getenv("KEY_PASSWORD")
+    }
+}
+defaultConfig {
+    versionCode = (findProperty("versionCode") as String?)?.toInt() ?: 1
+    versionName = (findProperty("versionName") as String?) ?: "dev"
+}
+```
+
+Keep the release asset named `decision-wizard-<tag>.apk`. Obtainium matches on a
+stable asset name; changing it breaks update detection on installed devices.
+
+### One-time keystore setup
+
+Not yet done. Generate the keystore and never commit it — `*.jks` and
+`*.keystore` are gitignored:
+
+```bash
+keytool -genkeypair -v -keystore release.jks -alias decision-wizard \
+  -keyalg RSA -keysize 4096 -validity 10000
+
+base64 -w0 release.jks    # paste as the KEYSTORE_B64 secret
+```
+
+Then set four repository secrets: `KEYSTORE_B64`, `KEYSTORE_PASSWORD`,
+`KEY_ALIAS`, `KEY_PASSWORD`.
+
+**Back up `release.jks` somewhere durable.** Losing it means no future build can
+update an installed app — Android refuses an update signed by a different key,
+and the only fix is uninstall and reinstall, which drops all user data.
+
+---
+
 ## Gotchas learned the hard way
 
 **Serialization defaults.** `GraphJson` sets `encodeDefaults = false` to keep
@@ -333,17 +402,19 @@ Ship each stage as a real signed APK before starting the next one.
 Done: Gradle scaffold, `:graphcore` compiling and green at 25 tests, package
 renamed off `com.example.tgraph`, four bugs found and fixed (see git history).
 
+CI is written: `test.yml` works today, `release.yml` is ready but inert until
+`:app` exists.
+
 Not done, in the order agreed:
 
-1. **CI before `:app`** — CI is what makes `:app` verifiable at all, and getting
-   signing working early is the stated point of v0.1. Tag push → `setup-java` 17
-   temurin → Gradle → decode `KEYSTORE_B64` secret → `assembleRelease` → attach
-   APK to the release. `versionCode` from `github.run_number`, `versionName`
-   from the tag.
-2. The `:app` module and v0.1's chat screen.
+1. **The `:app` module and v0.1's chat screen.** Must honour the CI contract
+   above. Cannot be built locally — push and let CI compile it.
+2. **Keystore and the four repository secrets** (see CI section). Needed before
+   the first tag.
 3. **Wire `GraphEditor.graph` to `mutableStateOf`** so recomposition fires. It is
    currently a plain `var` and will not trigger a redraw. Needed for v0.3, but
    easy to forget because it compiles fine.
+4. Rewrite `README.md` from scratch.
 
 ### Open questions
 
