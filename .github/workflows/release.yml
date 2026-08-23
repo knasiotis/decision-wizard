@@ -16,6 +16,11 @@ on:
   push:
     tags:
       - 'v*'
+  # Manual signing rehearsal. Builds and signs exactly as a real release would
+  # but publishes nothing, so the keystore and secrets can be proven without
+  # minting a version number. Versions name user-facing functionality; CI
+  # working is not functionality.
+  workflow_dispatch:
 
 # Never cancel a release midway through publishing.
 concurrency:
@@ -61,12 +66,37 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          VERSION_NAME="${GITHUB_REF_NAME#v}"
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            VERSION_NAME="${GITHUB_REF_NAME#v}"
+          else
+            VERSION_NAME="0.0.0-signing-check"
+          fi
           ./gradlew :graphcore:test :app:assembleRelease \
             -PversionName="$VERSION_NAME" \
             -PversionCode="${{ github.run_number }}"
 
+      # Signing rehearsal only: prove the keystore decodes and the APK is signed,
+      # without creating a release or consuming a version number.
+      - name: Verify signature (dry run)
+        if: github.ref_type != 'tag'
+        run: |
+          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
+          echo "built: $APK"
+          case "$APK" in
+            *unsigned*) echo "::error::APK is unsigned — the keystore secrets did not take effect"; exit 1 ;;
+          esac
+          "$ANDROID_HOME"/build-tools/*/apksigner verify --print-certs "$APK"
+
+      - name: Upload signed APK (dry run)
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v7
+        with:
+          name: signing-check
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 7
+
       - name: Publish release
+        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
