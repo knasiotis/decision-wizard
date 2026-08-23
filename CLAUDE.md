@@ -304,12 +304,14 @@ planned around temurin 17. Use 21 locally; CI installs its own.
 
 ## Toolchain state
 
-- **No usable Android SDK locally.** `ANDROID_HOME` points at
-  `/home/knasiotis/android-sdk`, which does not exist. `/usr/lib/android-sdk`
-  has only `build-tools/34.0.0` and a license file — no platform, no
-  `platform-tools`, no `cmdline-tools`.
-- **`:app` therefore cannot be built on this machine.** By decision, CI owns the
-  Android build. Do not install an SDK without asking.
+- **The Android SDK is installed** at `~/android-sdk` (~650 MB), which is where
+  `ANDROID_HOME` already pointed. Platforms `android-37.0` and `android-37.1`,
+  `build-tools;37.0.0`, `platform-tools` (so `adb` is available).
+- **`:app` builds locally**: `./gradlew :app:assembleDebug` — around 45s cold,
+  under a second incremental. Build everything locally before pushing; CI is a
+  backstop, not the first check.
+- Ignore `/usr/lib/android-sdk` — it holds only `build-tools/34.0.0` and a
+  license file, and is not what `ANDROID_HOME` refers to.
 - Gradle on `PATH` is **4.4.1** and useless. Always use `./gradlew`.
 - The wrapper jar is committed, fetched from the `v9.7.1` tag of gradle/gradle.
 
@@ -395,11 +397,11 @@ the cycle is broken *somewhere* and that stubs are reciprocal.
 and still uses `kotlin-jvm` normally. The Compose compiler plugin applies on top
 of AGP's built-in Kotlin without issue.
 
-**`:app` configures locally but cannot execute.** AGP 9 only needs the SDK at
-task-execution time, so `./gradlew :app:assembleDebug` will validate the whole
-build script and fail at "SDK location not found". That failure is the expected
-local outcome and is still a useful check — it catches every Kotlin DSL error
-before a push. It does **not** compile the Compose sources; only CI does that.
+**SDK platform packages now carry a minor version.** `platforms;android-37` does
+not exist — the packages are `platforms;android-37.0` and `platforms;android-37.1`.
+`sdkmanager` reports a bare `android-37` as "Failed to find package", which reads
+like the platform is unavailable when it is only named differently. This is also
+why the AAR metadata error suggested "at least 37, for example 37.1".
 
 **`compileSdk` is dictated by the dependencies, not chosen.** AndroidX artifacts
 declare a minimum consumer `compileSdk` in their AAR metadata, and the build
@@ -451,6 +453,59 @@ rehearsal instead of by burning a version number.
 - **v0.3.0** — the canvas editor: layout, stub chips, undo/redo, delete ops.
   Authoring moves onto the device.
 - **v0.4.0** — attachments and transcript export.
+
+## v0.2 plan
+
+The first tagged release. Someone can hold several flows, import one you sent,
+chat over any of them, and resume where they left off. Authoring stays
+hand-edited JSON until v0.3 — which is why the format must stay hand-editable.
+
+v0.1 has effectively no architecture: one activity, one composable, state in
+`rememberSaveable`. v0.2 adds persistence, navigation, background work and a
+settings store. **That jump is the real risk, not the features.**
+
+### Decisions
+
+| Question | Decision |
+|---|---|
+| Bundled example graph | **Dropped.** A fresh install has an empty library; the empty state carries first-run. Keep `samples/` as the `:graphcore` test fixture — only remove it from `:app` assets. |
+| Chat sessions persisted? | **Yes**, in Room. |
+| App launch behaviour | User preference: **resume last-opened session**, or **start a new chat**. Falls back to the Chats list when there is nothing to resume. Stored in DataStore, set from an overflow menu on Chats. |
+| Deleting a graph | **Cascades to its sessions.** The confirmation states the count ("3 chats will also be deleted"). A session stores only the answer path, so it cannot render without its graph. |
+| Node list / node detail screens | **Cut from v0.2.** Surface validation on the graph itself instead. Those screens exist to support the v0.3 editor. |
+
+### Schema
+
+Graph body stays a JSON blob per the locked decision, with metadata
+denormalised into columns so the library list renders without parsing every
+graph.
+
+```
+graphs    graphId PK, name, description, revision, updatedAt, rootNodeId, body TEXT
+sessions  sessionId PK, graphId FK -> CASCADE, graphRevision, stateJson,
+          startedAt, lastOpenedAt
+```
+
+`sessions.graphRevision` records what the session ran against. When a graph is
+later updated, `ChatEngine.turns()` already skips nodes that no longer exist, so
+old sessions degrade instead of crashing. Export the Room schema from the first
+version so later migrations have a baseline.
+
+### Split
+
+- **`:graphcore`** — `.dwiz` read/write, the import decision (same `graphId` +
+  higher `revision` → update, else duplicate), duplication that mints fresh ids
+  so an import cannot collide, FATAL validation gating. All unit-tested.
+- **`:app`** — Room, DataStore, SAF, navigation, screens.
+
+### Order
+
+1. `:graphcore` — dwiz I/O, import decisions, duplication, tests.
+2. Room — schema, DAOs, repository.
+3. Navigation shell + Graphs screen + import. Drop the bundled example here.
+4. Export + `.dwiz` intent filter.
+5. Session persistence + Chats screen + launch preference.
+6. Empty states, validation surfacing, device test, tag `v0.2.0`.
 
 ## Current state
 
