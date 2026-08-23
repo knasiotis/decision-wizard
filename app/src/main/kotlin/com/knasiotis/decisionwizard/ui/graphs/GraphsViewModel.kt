@@ -10,6 +10,9 @@ import com.knasiotis.decisionwizard.library.DwizCodec
 import com.knasiotis.decisionwizard.library.DwizFormatException
 import com.knasiotis.decisionwizard.library.ImportPlan
 import com.knasiotis.decisionwizard.library.ImportPlanner
+import com.knasiotis.decisionwizard.model.Answer
+import com.knasiotis.decisionwizard.model.Graph
+import com.knasiotis.decisionwizard.model.Node
 import com.knasiotis.decisionwizard.model.newId
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -101,6 +104,40 @@ class GraphsViewModel(
     }
 
     fun dismissConflict() { _conflict.value = null }
+
+    private val _created = MutableStateFlow<String?>(null)
+    /** graphId of a freshly created graph, so the caller can open the editor on it. */
+    val created: StateFlow<String?> = _created.asStateFlow()
+
+    /**
+     * A new graph is not empty: it gets one root question seeded with Yes/No,
+     * because an editor opening on nothing gives the user no handle to start
+     * from. Both answers are removable and more can be added.
+     */
+    fun createGraph(name: String) {
+        viewModelScope.launch {
+            val rootId = newId("n")
+            val graph = Graph(
+                graphId = newId("g"),
+                name = ImportPlanner.uniqueName(name.trim(), repository.takenNames()),
+                rootNodeId = rootId,
+                nodes = listOf(
+                    Node(
+                        id = rootId,
+                        title = "First question",
+                        answers = listOf(
+                            Answer(newId("e"), "Yes"),
+                            Answer(newId("e"), "No")
+                        )
+                    )
+                )
+            )
+            repository.save(graph)
+            _created.value = graph.graphId
+        }
+    }
+
+    fun clearCreated() { _created.value = null }
 
     fun askExport(graph: GraphEntity) {
         viewModelScope.launch {

@@ -37,6 +37,8 @@ import com.knasiotis.decisionwizard.ui.chat.ChatViewModel
 import com.knasiotis.decisionwizard.ui.chats.ChatsScreen
 import com.knasiotis.decisionwizard.ui.chats.ChatsViewModel
 import com.knasiotis.decisionwizard.ui.graphs.GraphsScreen
+import com.knasiotis.decisionwizard.ui.editor.EditorScreen
+import com.knasiotis.decisionwizard.ui.editor.EditorViewModel
 import com.knasiotis.decisionwizard.ui.graphs.GraphsViewModel
 import com.knasiotis.decisionwizard.ui.settings.SettingsScreen
 import com.knasiotis.decisionwizard.ui.settings.SettingsViewModel
@@ -54,6 +56,9 @@ private object Routes {
     const val CHATS = "chats"
     const val GRAPHS = "graphs"
     const val SETTINGS = "settings"
+    const val EDITOR = "editor/{graphId}"
+
+    fun editor(graphId: String) = "editor/$graphId"
     const val NEW_CHAT = "chat/new/{graphId}/{title}"
     const val RESUME_CHAT = "chat/session/{sessionId}"
 
@@ -166,6 +171,7 @@ fun DecisionWizardApp(
                 )
                 GraphsScreen(
                     viewModel = vm,
+                    onOpenEditor = { navController.navigate(Routes.editor(it)) },
                     pendingImportUri = pendingImportUri,
                     onPendingImportHandled = onPendingImportHandled
                 )
@@ -178,6 +184,17 @@ fun DecisionWizardApp(
                     }
                 )
                 SettingsScreen(viewModel = vm)
+            }
+
+            composable(Routes.EDITOR) { entry ->
+                val graphId = entry.arguments?.getString("graphId").orEmpty()
+                val vm: EditorViewModel = viewModel(
+                    key = "editor:$graphId",
+                    factory = viewModelFactory {
+                        initializer { EditorViewModel(app.repository, graphId) }
+                    }
+                )
+                EditorScreen(viewModel = vm, onBack = { navController.popBackStack() })
             }
 
             composable(Routes.NEW_CHAT) { entry ->

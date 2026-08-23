@@ -460,6 +460,13 @@ to match `<kotlin>-<ksp>` (e.g. `2.2.21-2.0.5`); that scheme is gone, and there 
 no `2.4.10-*` build to hunt for. KSP and the Room Gradle plugin both apply
 cleanly on top of AGP 9's built-in Kotlin.
 
+**The database currently destroys itself on any schema change.**
+`fallbackToDestructiveMigration` is on **temporarily**, because nobody depends on
+this database yet and migration code written only to preserve throwaway test data
+is not worth carrying. **Delete that line and write real migrations the moment
+anyone keeps graphs they care about** — graphs are hand-authored and cannot be
+re-downloaded.
+
 **Room schemas are committed** under `app/schemas/` and the database
 deliberately has **no `fallbackToDestructiveMigration`**, so a missing migration
 fails loudly rather than silently wiping the user's own hand-authored graphs.
@@ -581,9 +588,15 @@ mostly the UI over it — plus the one thing below that is a real bug waiting.
 
 ### Known trap
 
-**`GraphEditor.graph` is a plain `var`.** It will not trigger recomposition. It
+**`GraphEditor.graph` is a plain `var` and will not trigger recomposition.** It
 compiles fine and simply never redraws, so it looks like a broken editor rather
-than a state bug. Wire it to `mutableStateOf` before building anything on it.
+than a state bug.
+
+Do **not** fix this by making it `mutableStateOf` — that would put
+`androidx.compose.runtime` into `:graphcore` and break the rule that keeps the
+module framework-free and JVM-testable. Instead the editor ViewModel owns the
+`GraphEditor` and republishes a `StateFlow` after every operation, so
+recomposition is driven from `:app` and the core stays pure.
 
 ---
 

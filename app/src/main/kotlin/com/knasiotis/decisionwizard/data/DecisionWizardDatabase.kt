@@ -4,15 +4,6 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import androidx.room.migration.Migration
-import androidx.sqlite.db.SupportSQLiteDatabase
-
-/** v0.3 gave chats a title. A real migration, so test chats are not wiped. */
-internal val MIGRATION_1_2 = object : Migration(1, 2) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("ALTER TABLE sessions ADD COLUMN title TEXT NOT NULL DEFAULT ''")
-    }
-}
 
 @Database(
     entities = [GraphEntity::class, SessionEntity::class],
@@ -37,10 +28,14 @@ abstract class DecisionWizardDatabase : RoomDatabase() {
 
         private fun build(context: Context): DecisionWizardDatabase =
             Room.databaseBuilder(context, DecisionWizardDatabase::class.java, NAME)
-                .addMigrations(MIGRATION_1_2)
-                // Deliberately no fallbackToDestructiveMigration. These graphs
-                // are the user's own work and cannot be re-downloaded, so a
-                // missing migration must fail loudly rather than wipe them.
+                // TEMPORARY, and it must not survive first real use.
+                //
+                // Nobody depends on this database yet, so a schema change wipes
+                // it instead of carrying migration code that exists only to
+                // preserve throwaway test data. The moment anyone keeps graphs
+                // they care about, delete this line and write real migrations —
+                // graphs are hand-authored and cannot be re-downloaded.
+                .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()
     }
 }

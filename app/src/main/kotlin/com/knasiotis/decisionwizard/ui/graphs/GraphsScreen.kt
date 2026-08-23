@@ -2,6 +2,7 @@ package com.knasiotis.decisionwizard.ui.graphs
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.foundation.clickable
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -26,7 +28,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -38,6 +42,7 @@ import com.knasiotis.decisionwizard.data.GraphEntity
 @Composable
 fun GraphsScreen(
     viewModel: GraphsViewModel,
+    onOpenEditor: (String) -> Unit,
     modifier: Modifier = Modifier,
     /** A .dwiz the user tapped outside the app. Imported once, then released. */
     pendingImportUri: Uri? = null,
@@ -50,6 +55,18 @@ fun GraphsScreen(
     val message by viewModel.message.collectAsStateWithLifecycle()
 
     val snackbars = remember { SnackbarHostState() }
+    var creating by remember { mutableStateOf(false) }
+    var namingNew by remember { mutableStateOf(false) }
+    val created by viewModel.created.collectAsStateWithLifecycle()
+
+    // A freshly created graph goes straight to the editor; there is nothing to
+    // look at on the card until the user has built something.
+    LaunchedEffect(created) {
+        created?.let {
+            viewModel.clearCreated()
+            onOpenEditor(it)
+        }
+    }
 
     // .dwiz has no registered MIME type, so the picker cannot filter on one.
     val picker = rememberLauncherForActivityResult(
@@ -86,8 +103,8 @@ fun GraphsScreen(
         snackbarHost = { SnackbarHost(snackbars) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = { picker.launch(arrayOf("*/*")) },
-                text = { Text("Import") },
+                onClick = { creating = true },
+                text = { Text("Create") },
                 icon = {}
             )
         }
@@ -105,12 +122,45 @@ fun GraphsScreen(
                 items(graphs!!, key = { it.graphId }) { graph ->
                     GraphCard(
                         graph = graph,
+                        onOpen = { onOpenEditor(graph.graphId) },
                         onExport = { viewModel.askExport(graph) },
                         onDelete = { viewModel.askDelete(graph) }
                     )
                 }
             }
         }
+    }
+
+    if (creating) {
+        // Import is one way of creating a graph, not a separate concept, so it
+        // sits beside "start from scratch" rather than owning its own button.
+        AlertDialog(
+            onDismissRequest = { creating = false },
+            title = { Text("Add a graph") },
+            text = {
+                Column {
+                    TextButton(onClick = {
+                        creating = false
+                        namingNew = true
+                    }) { Text("Start a new graph") }
+                    TextButton(onClick = {
+                        creating = false
+                        picker.launch(arrayOf("*/*"))
+                    }) { Text("Import from a file") }
+                }
+            },
+            confirmButton = { TextButton(onClick = { creating = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (namingNew) {
+        NewGraphDialog(
+            onConfirm = {
+                namingNew = false
+                viewModel.createGraph(it)
+            },
+            onDismiss = { namingNew = false }
+        )
     }
 
     conflict?.let {
@@ -136,6 +186,31 @@ fun GraphsScreen(
 }
 
 @Composable
+private fun NewGraphDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
+    var name by remember { mutableStateOf("") }
+    val trimmed = name.trim()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Name the graph") },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Name") },
+                singleLine = true
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(trimmed) }, enabled = trimmed.isNotEmpty()) {
+                Text("Create")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+@Composable
 private fun EmptyLibrary(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier.fillMaxSize().padding(32.dp),
@@ -144,7 +219,7 @@ private fun EmptyLibrary(modifier: Modifier = Modifier) {
     ) {
         Text("No graphs yet", style = MaterialTheme.typography.titleMedium)
         Text(
-            "Import a .dwiz file that someone sent you, or write one by hand and open it here.",
+            "Tap Create to start a new graph, or to import a .dwiz file someone sent you.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -156,13 +231,12 @@ private fun EmptyLibrary(modifier: Modifier = Modifier) {
 @Composable
 private fun GraphCard(
     graph: GraphEntity,
+    onOpen: () -> Unit,
     onExport: () -> Unit,
     onDelete: () -> Unit
 ) {
-    // Not clickable. Tapping a graph used to start a chat, which made this tab
-    // feel like a read-only chat list. Chats begin on the Chats tab; this card
-    // becomes the way into the editor in v0.3.
-    Card(modifier = Modifier.fillMaxWidth()) {
+    // Opens the editor, not a chat. Chats start on the Chats tab.
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
