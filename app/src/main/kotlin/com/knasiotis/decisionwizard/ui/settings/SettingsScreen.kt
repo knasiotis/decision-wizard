@@ -236,6 +236,11 @@ private fun About() {
             modifier = Modifier.clickable { taps++ }
         )
         Text(
+            "Made by knasiotis",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
             "GNU General Public License v3.0",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
