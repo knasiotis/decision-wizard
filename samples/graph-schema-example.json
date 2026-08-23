@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 1,
+  "graphId": "0f9c2a6e-4b31-4d8a-9f2e-77c1a0e5b310",
+  "name": "Internet down",
+  "description": "Home broadband troubleshooting",
+  "revision": 7,
+  "updatedAt": "2026-08-21T14:03:00Z",
+  "rootNodeId": "n-power",
+  "nodes": [
+    {
+      "id": "n-power",
+      "title": "Is the router powered on?",
+      "body": "Ask the customer to look at the power LED on the front panel.",
+      "answers": [
+        { "id": "e-1", "label": "Yes", "targetNodeId": "n-lights" },
+        { "id": "e-2", "label": "No", "targetNodeId": "n-plug" }
+      ]
+    },
+    {
+      "id": "n-plug",
+      "title": "Check the power supply",
+      "body": "Confirm the adapter is seated at both the wall and the router.",
+      "snippets": [
+        {
+          "id": "s-1",
+          "label": "Ticket note",
+          "text": "Customer confirmed router had no power. Advised checking adapter at both ends."
+        }
+      ],
+      "answers": [
+        { "id": "e-3", "label": "Powers on now", "targetNodeId": "n-lights" },
+        { "id": "e-4", "label": "Still dead", "targetNodeId": "n-swap-psu" }
+      ]
+    },
+    {
+      "id": "n-lights",
+      "title": "What colour is the internet LED?",
+      "body": "Green means sync. Red or off means no line. Amber means syncing.",
+      "attachments": [
+        {
+          "id": "a-1",
+          "kind": "image",
+          "path": "assets/router-leds.jpg",
+          "caption": "LED positions on the front panel"
+        }
+      ],
+      "answers": [
+        { "id": "e-5", "label": "Green", "targetNodeId": "n-wifi" },
+        { "id": "e-6", "label": "Amber", "targetNodeId": "n-wait" },
+        { "id": "e-7", "label": "Red or off", "targetNodeId": "n-cable" }
+      ]
+    },
+    {
+      "id": "n-cable",
+      "title": "Reseat the WAN cable",
+      "body": "Unplug and firmly reconnect the cable at the router and the wall socket.",
+      "snippets": [
+        {
+          "id": "s-2",
+          "label": "Ticket note",
+          "text": "Advised customer to reseat WAN cable at both ends. Awaiting result."
+        }
+      ],
+      "answers": [
+        { "id": "e-8", "label": "LED went green", "targetNodeId": "n-wifi" },
+        { "id": "e-9", "label": "No change", "targetNodeId": "n-restart" }
+      ]
+    },
+    {
+      "id": "n-wait",
+      "title": "Wait two minutes for sync",
+      "body": "Amber means the line is negotiating. This can take up to two minutes.",
+      "answers": [
+        { "id": "e-10", "label": "Went green", "targetNodeId": "n-wifi" },
+        { "id": "e-11", "label": "Still amber", "targetNodeId": "n-restart" }
+      ]
+    },
+    {
+      "id": "n-restart",
+      "title": "Power cycle the router",
+      "body": "Unplug for 30 seconds, plug back in, wait for the router to fully boot.",
+      "answers": [
+        { "id": "e-12", "label": "Working now", "targetNodeId": "n-resolved" },
+        { "id": "e-13", "label": "Still no sync", "targetNodeId": "n-recheck" }
+      ]
+    },
+    {
+      "id": "n-recheck",
+      "title": "Recheck the cable before escalating",
+      "body": "A loose WAN cable is the most common cause of a failed power cycle.",
+      "answers": [
+        { "id": "e-14", "label": "Try the cable again", "targetNodeId": "n-cable" },
+        { "id": "e-15", "label": "Cable is definitely fine", "targetNodeId": "n-escalate" }
+      ]
+    },
+    {
+      "id": "n-wifi",
+      "title": "Can the customer reach a website?",
+      "body": "Have them open a browser and load any site over Wi-Fi.",
+      "answers": [
+        { "id": "e-16", "label": "Yes", "targetNodeId": "n-resolved" },
+        { "id": "e-17", "label": "No", "targetNodeId": "n-escalate" }
+      ]
+    },
+    {
+      "id": "n-swap-psu",
+      "title": "Arrange a replacement power supply",
+      "body": "Router hardware fault. Raise a hardware dispatch.",
+      "snippets": [
+        {
+          "id": "s-3",
+          "label": "Ticket note",
+          "text": "Router does not power on with known-good outlet. Dispatching replacement PSU."
+        }
+      ],
+      "answers": []
+    },
+    {
+      "id": "n-escalate",
+      "title": "Escalate to line diagnostics",
+      "body": "Raise to tier 2 with the LED state and everything already attempted.",
+      "snippets": [
+        {
+          "id": "s-4",
+          "label": "Escalation summary",
+          "text": "Power confirmed. WAN cable reseated. Power cycle performed. No sync achieved. Escalating for line test."
+        }
+      ],
+      "attachments": [
+        {
+          "id": "a-2",
+          "kind": "link",
+          "url": "https://internal.example/tier2-form",
+          "caption": "Tier 2 escalation form"
+        }
+      ],
+      "answers": []
+    },
+    {
+      "id": "n-resolved",
+      "title": "Resolved",
+      "body": "Confirm the customer is browsing normally, then close the ticket.",
+      "snippets": [
+        {
+          "id": "s-5",
+          "label": "Closing note",
+          "text": "Connectivity restored and confirmed by customer. Closing ticket."
+        }
+      ],
+      "answers": []
+    }
+  ]
+}
