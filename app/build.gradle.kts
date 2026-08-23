@@ -3,6 +3,14 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.room)
+}
+
+// Schemas are committed. A migration in v0.3 needs the previous version to diff
+// against, and that is impossible to reconstruct after the fact.
+room {
+    schemaDirectory("$projectDir/schemas")
 }
 
 // Read through providers, not System.getenv/findProperty directly: the root
@@ -81,6 +89,9 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+
+    implementation(libs.room.runtime)
+    ksp(libs.room.compiler)
 
     debugImplementation(libs.compose.ui.tooling)
 }

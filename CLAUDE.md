@@ -397,6 +397,17 @@ the cycle is broken *somewhere* and that stubs are reciprocal.
 and still uses `kotlin-jvm` normally. The Compose compiler plugin applies on top
 of AGP's built-in Kotlin without issue.
 
+**KSP is versioned independently of Kotlin** since KSP 2.3.0. Older guidance says
+to match `<kotlin>-<ksp>` (e.g. `2.2.21-2.0.5`); that scheme is gone, and there is
+no `2.4.10-*` build to hunt for. KSP and the Room Gradle plugin both apply
+cleanly on top of AGP 9's built-in Kotlin.
+
+**Room schemas are committed** under `app/schemas/` and the database
+deliberately has **no `fallbackToDestructiveMigration`**. These graphs are the
+user's own work and cannot be re-downloaded, so a missing migration must fail
+loudly rather than silently wipe them. v0.3 will need a real migration and the
+committed schema is what it diffs against.
+
 **SDK platform packages now carry a minor version.** `platforms;android-37` does
 not exist — the packages are `platforms;android-37.0` and `platforms;android-37.1`.
 `sdkmanager` reports a bare `android-37` as "Failed to find package", which reads
