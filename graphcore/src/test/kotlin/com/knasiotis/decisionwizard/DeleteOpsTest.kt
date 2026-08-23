@@ -147,3 +147,53 @@ class DeleteOpsTest {
         assertTrue(out.nodes.flatMap { it.answers }.none { it.targetNodeId == "n-recheck" })
     }
 }
+
+/**
+ * The undo stack has to be able to say what an undo *takes back*, which is not
+ * the same as the state it returns to.
+ */
+class UndoStackTest {
+
+    private val start = Fixtures.graph("a", Fixtures.node("a"))
+    private val next = Fixtures.graph("a", Fixtures.node("a"), Fixtures.node("b"))
+
+    @Test
+    fun `undo returns the state before the edit`() {
+        val editor = com.knasiotis.decisionwizard.editor.GraphEditor(start)
+        editor.applyStructural(next, "Added \"B\"", "b")
+
+        assertEquals(2, editor.graph.nodes.size)
+        assertNotNull(editor.undo())
+        assertEquals(1, editor.graph.nodes.size)
+    }
+
+    /** The bug this exists to prevent: an undo announcing "Opened". */
+    @Test
+    fun `the snapshot to announce names the edit, not the state before it`() {
+        val editor = com.knasiotis.decisionwizard.editor.GraphEditor(start)
+        editor.applyStructural(next, "Added \"B\"", "b")
+
+        assertEquals("Added \"B\"", editor.undoSnapshot?.description)
+        assertEquals("b", editor.undoSnapshot?.focusNodeId)
+
+        // Whereas what undo() hands back describes the state being restored.
+        assertEquals("Opened", editor.undo()?.description)
+    }
+
+    @Test
+    fun `redo names the edit being re-applied`() {
+        val editor = com.knasiotis.decisionwizard.editor.GraphEditor(start)
+        editor.applyStructural(next, "Added \"B\"", "b")
+        editor.undo()
+
+        assertEquals("Added \"B\"", editor.redoLabel)
+        assertEquals("Added \"B\"", editor.redo()?.description)
+    }
+
+    @Test
+    fun `nothing to undo at the start`() {
+        val editor = com.knasiotis.decisionwizard.editor.GraphEditor(start)
+        assertNull(editor.undoSnapshot)
+        assertNull(editor.undo())
+    }
+}

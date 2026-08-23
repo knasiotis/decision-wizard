@@ -85,18 +85,28 @@ class EditorViewModel(
      * it says what it took back and points at where it happened.
      */
     fun undo() {
-        val snapshot = editor?.undo() ?: return
+        val editor = editor ?: return
+        // Taken before the undo: this is the edit being reversed. What undo()
+        // hands back is the state being restored, which describes the edit
+        // before that one — announcing it says "Opened" after the first undo.
+        val undone = editor.undoSnapshot ?: return
+        editor.undo() ?: return
+
         publish(dirty = true, announcement = announce(
-            message = "Undone: ${snapshot.description}",
-            focusNodeId = snapshot.focusNodeId,
+            message = "Undone: ${undone.description}",
+            // The node may have been what was removed, in which case there is
+            // nothing to look at; lookAt ignores an id it cannot place.
+            focusNodeId = undone.focusNodeId,
             undoable = false
         ))
     }
 
     fun redo() {
+        // redo() returns the snapshot being re-applied, so its description is
+        // the edit itself.
         val snapshot = editor?.redo() ?: return
         publish(dirty = true, announcement = announce(
-            message = snapshot.description,
+            message = "Redone: ${snapshot.description}",
             focusNodeId = snapshot.focusNodeId,
             undoable = false
         ))
@@ -167,15 +177,9 @@ class EditorViewModel(
             parent.withAnswer(Answer(newId("e"), newLabel?.trim().orEmpty().ifBlank { "Next" }, childId))
         }
 
-        editor.applyStructural(
-            editor.graph.addNode(child).replaceNode(linked),
-            "Added question",
-            childId
-        )
-        publish(
-            dirty = true,
-            announcement = announce("Added \"${child.title}\"", childId, undoable = true)
-        )
+        val what = "Added \"${child.title}\""
+        editor.applyStructural(editor.graph.addNode(child).replaceNode(linked), what, childId)
+        publish(dirty = true, announcement = announce(what, childId, undoable = true))
     }
 
     /**
@@ -221,15 +225,9 @@ class EditorViewModel(
             parent.withAnswer(Answer(newId("e"), newLabel?.trim().orEmpty().ifBlank { "Next" }, childId))
         }
 
-        editor.applyStructural(
-            editor.graph.addNode(child).replaceNode(linked),
-            "Added resolution",
-            childId
-        )
-        publish(
-            dirty = true,
-            announcement = announce("Added \"${child.title}\"", childId, undoable = true)
-        )
+        val what = "Added \"${child.title}\""
+        editor.applyStructural(editor.graph.addNode(child).replaceNode(linked), what, childId)
+        publish(dirty = true, announcement = announce(what, childId, undoable = true))
     }
 
     // --- snippets, staged like any other text editing ---
@@ -275,11 +273,9 @@ class EditorViewModel(
             parent.withAnswer(Answer(newId("e"), newLabel?.trim().orEmpty().ifBlank { "Next" }, targetId))
         }
 
-        editor.applyStructural(editor.graph.replaceNode(linked), "Connected", targetId)
-        publish(
-            dirty = true,
-            announcement = announce("Connected", targetId, undoable = true)
-        )
+        val what = "Connected to \"${editor.graph.byId[targetId]?.title ?: "question"}\""
+        editor.applyStructural(editor.graph.replaceNode(linked), what, targetId)
+        publish(dirty = true, announcement = announce(what, targetId, undoable = true))
     }
 
     fun deletePreview(nodeId: String): DeleteOps.DeletePreview? =
@@ -297,12 +293,9 @@ class EditorViewModel(
                 adoptiveId?.let { DeleteOps.deleteAndReparent(graph, nodeId, it) }
         } ?: return
 
-        val title = graph.byId[nodeId]?.title ?: "question"
-        editor.applyStructural(next, "Deleted question", null)
-        publish(
-            dirty = true,
-            announcement = announce("Deleted \"$title\"", null, undoable = true)
-        )
+        val what = "Deleted \"${graph.byId[nodeId]?.title ?: "question"}\""
+        editor.applyStructural(next, what, null)
+        publish(dirty = true, announcement = announce(what, null, undoable = true))
     }
 
     // --- text editing: staged per keystroke, one undo step when the sheet closes ---
@@ -317,14 +310,15 @@ class EditorViewModel(
     /** Called once when the editing sheet closes, collapsing the typing session. */
     fun commitEdits(nodeId: String) {
         val before = editor?.canUndo
-        editor?.commitDraft("Edited question", nodeId)
+        val what = "Edited \"${editor?.graph?.byId?.get(nodeId)?.title ?: "question"}\""
+        editor?.commitDraft(what, nodeId)
         // commitDraft is a no-op when nothing actually changed, and announcing a
         // change that did not happen is worse than saying nothing.
         val changed = editor?.canUndo != before || _state.value.dirty
         publish(
             dirty = true,
             announcement = if (changed) {
-                announce("Edited question", nodeId, undoable = true)
+                announce(what, nodeId, undoable = true)
             } else null
         )
     }

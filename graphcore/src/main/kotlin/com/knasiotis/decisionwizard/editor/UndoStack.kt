@@ -30,9 +30,21 @@ class UndoStack(initial: Graph, private val limit: Int = 50) {
 
     val current: Snapshot get() = undoStack.last()
 
+    /**
+     * The snapshot an undo would take back — the action itself.
+     *
+     * Not the same as what [undo] returns, which is the state being *returned
+     * to* and therefore describes the action before it. Announcing that one says
+     * "Opened" after undoing the first edit.
+     */
+    val undoSnapshot: Snapshot? get() = if (canUndo) undoStack.last() else null
+
+    /** The snapshot a redo would re-apply. After an undo, the action taken back. */
+    val redoSnapshot: Snapshot? get() = redoStack.lastOrNull()
+
     /** The label for the button tooltip and the snackbar after an undo. */
-    val undoDescription: String? get() = if (canUndo) undoStack.last().description else null
-    val redoDescription: String? get() = redoStack.lastOrNull()?.description
+    val undoDescription: String? get() = undoSnapshot?.description
+    val redoDescription: String? get() = redoSnapshot?.description
 
     fun commit(graph: Graph, description: String, focusNodeId: String? = null) {
         undoStack.addLast(Snapshot(graph, description, focusNodeId))
@@ -74,6 +86,9 @@ class GraphEditor(initial: Graph) {
     val canRedo: Boolean get() = stack.canRedo
     val undoLabel: String? get() = stack.undoDescription
     val redoLabel: String? get() = stack.redoDescription
+
+    /** The edit an undo would take back, for saying what was undone. */
+    val undoSnapshot: Snapshot? get() = stack.undoSnapshot
 
     fun applyStructural(next: Graph, description: String, focusNodeId: String?) {
         draftBase = null
