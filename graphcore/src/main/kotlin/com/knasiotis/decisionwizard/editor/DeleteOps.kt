@@ -43,13 +43,15 @@ object DeleteOps {
      * become orphans, which the canvas greys out.
      */
     fun deleteOnly(graph: Graph, nodeId: String): Graph =
-        graph.removeNode(nodeId).copy(
-            nodes = graph.removeNode(nodeId).nodes.map { node ->
-                node.copy(answers = node.answers.map {
-                    if (it.targetNodeId == nodeId) it.copy(targetNodeId = null) else it
-                })
-            }
-        )
+        graph.removeNode(nodeId).let { without ->
+            without.copy(
+                nodes = without.nodes.map { node ->
+                    node.copy(answers = node.answers.map {
+                        if (it.targetNodeId == nodeId) it.copy(targetNodeId = null) else it
+                    })
+                }
+            )
+        }
 
     /** Remove the node plus everything that becomes unreachable because of it. */
     fun deleteAndPurge(graph: Graph, nodeId: String): Graph {
@@ -97,9 +99,12 @@ object DeleteOps {
         val adoptive = graph.byId[adoptiveNodeId] ?: return null
         if (adoptiveNodeId == nodeId) return null
 
-        val existingTargets = adoptive.answers.mapNotNull { it.targetNodeId }.toSet()
+        // Skip only an exact duplicate branch. Two answers reaching the same child
+        // under different labels are two different routes, and the label is what
+        // the agent actually reads — dropping one would lose the distinction.
+        val existing = adoptive.answers.map { it.label to it.targetNodeId }.toSet()
         val adopted = node.answers
-            .filter { it.targetNodeId != null && it.targetNodeId !in existingTargets }
+            .filter { it.targetNodeId != null && (it.label to it.targetNodeId) !in existing }
             .map { Answer(newId("e"), it.label, it.targetNodeId) }
 
         val updatedAdoptive = adoptive.copy(answers = adoptive.answers + adopted)

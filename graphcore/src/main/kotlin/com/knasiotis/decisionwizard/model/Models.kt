@@ -1,5 +1,8 @@
+@file:OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+
 package com.knasiotis.decisionwizard.model
 
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -8,10 +11,16 @@ const val CURRENT_SCHEMA_VERSION = 1
 
 @Serializable
 data class Graph(
+    // Written even when they equal the default. `encodeDefaults = false` keeps the
+    // file small and hand-editable, but these two drive the whole import/update
+    // decision — a v1 export that omits them is indistinguishable from a file with
+    // no version at all.
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     val schemaVersion: Int = CURRENT_SCHEMA_VERSION,
     val graphId: String,
     val name: String,
     val description: String = "",
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     val revision: Int = 1,
     val updatedAt: String = "",
     val rootNodeId: String? = null,

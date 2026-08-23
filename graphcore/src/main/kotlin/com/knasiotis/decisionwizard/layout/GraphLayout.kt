@@ -70,8 +70,12 @@ object LayoutEngine {
         val positions = place(layers, nodeHeightOf)
         val (edges, chips) = classifyEdges(graph, allDepths, backEdges)
 
-        val width = layers.maxOfOrNull { it.size * NODE_WIDTH + (it.size - 1) * NODE_H_GAP } ?: 0f
-        val height = positions.values.maxOfOrNull { it.y + nodeHeightOf("") } ?: 0f
+        // Must agree with the canvas width `place` centred each row against.
+        val widest = layers.maxOfOrNull { it.size } ?: 0
+        val width = if (widest == 0) 0f else widest * NODE_WIDTH + (widest - 1) * NODE_H_GAP
+        // Ask for the height of each real node. Never pass a synthetic id here —
+        // the callback is backed by measured composables in the editor.
+        val height = positions.entries.maxOfOrNull { (id, p) -> p.y + nodeHeightOf(id) } ?: 0f
 
         return GraphLayout(positions, layers, edges, chips, orphans, width, height)
     }
