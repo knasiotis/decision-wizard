@@ -94,6 +94,10 @@ fun DecisionWizardApp(
         }
         launchHandled = true
 
+        // Apply the retention setting before deciding what to open, or a chat
+        // that is about to be pruned could be the one we resume into.
+        app.repository.pruneSessions(app.settings.chatRetentionDays.first())
+
         if (app.settings.launchBehaviour.first() == LaunchBehaviour.NEW_CHAT) {
             // "Start a new chat" means choosing what it runs on.
             navController.navigate(Routes.GRAPHS) { launchSingleTop = true }
@@ -145,7 +149,8 @@ fun DecisionWizardApp(
                 )
                 ChatsScreen(
                     viewModel = vm,
-                    onOpenChat = { navController.navigate(Routes.resumeChat(it)) }
+                    onOpenChat = { navController.navigate(Routes.resumeChat(it)) },
+                    onStartChat = { navController.navigate(Routes.newChat(it)) }
                 )
             }
 
@@ -157,7 +162,6 @@ fun DecisionWizardApp(
                 )
                 GraphsScreen(
                     viewModel = vm,
-                    onOpenGraph = { navController.navigate(Routes.newChat(it)) },
                     pendingImportUri = pendingImportUri,
                     onPendingImportHandled = onPendingImportHandled
                 )

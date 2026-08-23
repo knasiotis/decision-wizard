@@ -3,6 +3,7 @@ package com.knasiotis.decisionwizard.ui.settings
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.knasiotis.decisionwizard.data.ChatRetention
 import com.knasiotis.decisionwizard.data.FileGateway
 import com.knasiotis.decisionwizard.data.LaunchBehaviour
 import com.knasiotis.decisionwizard.data.LibraryRepository
@@ -30,6 +31,9 @@ class SettingsViewModel(
     val launchBehaviour: StateFlow<LaunchBehaviour> = settings.launchBehaviour
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LaunchBehaviour.RESUME_LAST)
 
+    val chatRetentionDays: StateFlow<Int> = settings.chatRetentionDays
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatRetention.FOREVER)
+
     val graphCount: StateFlow<Int> = repository.summaries()
         .map { it.size }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
@@ -42,6 +46,22 @@ class SettingsViewModel(
 
     fun setLaunchBehaviour(value: LaunchBehaviour) {
         viewModelScope.launch { settings.setLaunchBehaviour(value) }
+    }
+
+    /**
+     * Applies the new limit immediately rather than waiting for the next launch,
+     * so the effect of the choice is visible while the user is still looking at
+     * it — and reports what it took, because silently deleting history is not on.
+     */
+    fun setChatRetentionDays(days: Int) {
+        viewModelScope.launch {
+            settings.setChatRetentionDays(days)
+            val removed = repository.pruneSessions(days)
+            if (removed > 0) {
+                _message.value =
+                    "Deleted $removed ${if (removed == 1) "old chat" else "old chats"}."
+            }
+        }
     }
 
     fun askBackup() {

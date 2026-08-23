@@ -81,4 +81,14 @@ class LibraryRepository(
     }
 
     suspend fun deleteSession(sessionId: String) = sessions.delete(sessionId)
+
+    /**
+     * Applies the retention setting. [days] of 0 means keep everything, which is
+     * the default — silently deleting the user's history is never the default.
+     */
+    suspend fun pruneSessions(days: Int): Int {
+        if (days <= 0) return 0
+        val cutoff = now() - days * 24L * 60 * 60 * 1000
+        return sessions.deleteOpenedBefore(cutoff)
+    }
 }

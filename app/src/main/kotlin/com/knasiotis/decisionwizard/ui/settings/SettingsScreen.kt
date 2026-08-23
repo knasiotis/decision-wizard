@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.knasiotis.decisionwizard.data.ChatRetention
 import com.knasiotis.decisionwizard.data.LaunchBehaviour
 
 /**
@@ -41,6 +42,7 @@ import com.knasiotis.decisionwizard.data.LaunchBehaviour
 fun SettingsScreen(viewModel: SettingsViewModel, modifier: Modifier = Modifier) {
     val launchBehaviour by viewModel.launchBehaviour.collectAsStateWithLifecycle()
 
+    val retentionDays by viewModel.chatRetentionDays.collectAsStateWithLifecycle()
     val graphCount by viewModel.graphCount.collectAsStateWithLifecycle()
     val backupName by viewModel.backupName.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
@@ -93,6 +95,20 @@ fun SettingsScreen(viewModel: SettingsViewModel, modifier: Modifier = Modifier) 
                     selected = launchBehaviour == LaunchBehaviour.NEW_CHAT,
                     onClick = { viewModel.setLaunchBehaviour(LaunchBehaviour.NEW_CHAT) }
                 )
+            }
+
+            Setting(
+                title = "Delete old chats",
+                description = "Counted from when a chat was last opened, so one you " +
+                    "keep coming back to is never swept up because it began long ago."
+            ) {
+                ChatRetention.CHOICES.forEach { days ->
+                    Choice(
+                        label = ChatRetention.label(days),
+                        selected = retentionDays == days,
+                        onClick = { viewModel.setChatRetentionDays(days) }
+                    )
+                }
             }
 
             SectionHeader("Graphs")

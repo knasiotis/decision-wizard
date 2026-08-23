@@ -198,6 +198,18 @@ looks like a broken button.
 
 Bottom navigation: Chats / Graphs / Settings.
 
+**Chats own chat-starting; Graphs own graphs.** New chats begin from the FAB on
+the Chats tab, which picks the graph to run on. A graph card is deliberately
+**not** clickable — tapping one used to start a chat, which made the Graphs tab
+read as a second, read-only chat list. That card becomes the way into the canvas
+editor in v0.3.
+
+**Deleting a chat deletes only the chat**, and its dialog says the graph is kept.
+Deleting a *graph* is what asks about chats, because a session stores only the
+answers taken and cannot be rendered without its graph. The two are easy to
+conflate: a chat card is named after its graph, so it carries a "Chat" label and
+its button reads "Delete chat".
+
 **Settings is a top-level destination, not an overflow menu**, and is grouped by
 the area each setting affects (Chats, Graphs, …). There is little in it today;
 the grouping exists so the next setting does not force another reshuffle.

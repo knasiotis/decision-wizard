@@ -3,7 +3,6 @@ package com.knasiotis.decisionwizard.ui.graphs
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -39,7 +38,6 @@ import com.knasiotis.decisionwizard.data.GraphEntity
 @Composable
 fun GraphsScreen(
     viewModel: GraphsViewModel,
-    onOpenGraph: (String) -> Unit,
     modifier: Modifier = Modifier,
     /** A .dwiz the user tapped outside the app. Imported once, then released. */
     pendingImportUri: Uri? = null,
@@ -107,7 +105,6 @@ fun GraphsScreen(
                 items(graphs!!, key = { it.graphId }) { graph ->
                     GraphCard(
                         graph = graph,
-                        onOpen = { onOpenGraph(graph.graphId) },
                         onExport = { viewModel.askExport(graph) },
                         onDelete = { viewModel.askDelete(graph) }
                     )
@@ -159,11 +156,13 @@ private fun EmptyLibrary(modifier: Modifier = Modifier) {
 @Composable
 private fun GraphCard(
     graph: GraphEntity,
-    onOpen: () -> Unit,
     onExport: () -> Unit,
     onDelete: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
+    // Not clickable. Tapping a graph used to start a chat, which made this tab
+    // feel like a read-only chat list. Chats begin on the Chats tab; this card
+    // becomes the way into the editor in v0.3.
+    Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)

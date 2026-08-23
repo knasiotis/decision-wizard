@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.knasiotis.decisionwizard.chat.ChatState
 import com.knasiotis.decisionwizard.data.LibraryRepository
 import com.knasiotis.decisionwizard.data.SessionListRow
+import com.knasiotis.decisionwizard.library.GraphSummary
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -24,6 +25,10 @@ data class ChatSummary(
 class ChatsViewModel(
     private val repository: LibraryRepository
 ) : ViewModel() {
+
+    /** Backs the new-chat picker: which graph should this chat run on. */
+    val graphs: StateFlow<List<GraphSummary>> = repository.summaries()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val chats: StateFlow<List<ChatSummary>?> = repository.sessionList()
         .map { rows -> rows.map { it.toSummary() } }

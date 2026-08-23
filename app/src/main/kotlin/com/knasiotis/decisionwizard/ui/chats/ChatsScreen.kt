@@ -11,8 +11,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -20,20 +24,28 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.knasiotis.decisionwizard.library.GraphSummary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatsScreen(
     viewModel: ChatsViewModel,
     onOpenChat: (String) -> Unit,
+    onStartChat: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val chats by viewModel.chats.collectAsStateWithLifecycle()
+    val graphs by viewModel.graphs.collectAsStateWithLifecycle()
+    var pendingDelete by remember { mutableStateOf<ChatSummary?>(null) }
+    var picking by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier,
@@ -55,12 +67,88 @@ fun ChatsScreen(
                     ChatCard(
                         chat = chat,
                         onOpen = { onOpenChat(chat.sessionId) },
-                        onDelete = { viewModel.delete(chat.sessionId) }
+                        onDelete = { pendingDelete = chat }
                     )
                 }
             }
         }
     }
+
+    if (picking) {
+        GraphPickerDialog(
+            graphs = graphs,
+            onPick = {
+                picking = false
+                onStartChat(it)
+            },
+            onDismiss = { picking = false }
+        )
+    }
+
+    pendingDelete?.let { chat ->
+        DeleteChatDialog(
+            chat = chat,
+            onConfirm = {
+                viewModel.delete(chat.sessionId)
+                pendingDelete = null
+            },
+            onDismiss = { pendingDelete = null }
+        )
+    }
+}
+
+/** Which graph should the new chat run on. */
+@Composable
+private fun GraphPickerDialog(
+    graphs: List<GraphSummary>,
+    onPick: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (graphs.isEmpty()) "No graphs yet" else "Start a chat on…") },
+        text = {
+            if (graphs.isEmpty()) {
+                Text("Import a graph on the Graphs tab first, then a chat can run on it.")
+            } else {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    graphs.forEach { graph ->
+                        Text(
+                            text = graph.name,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onPick(graph.graphId) }
+                                .padding(vertical = 12.dp)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+@Composable
+private fun DeleteChatDialog(
+    chat: ChatSummary,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete this chat?") },
+        text = {
+            // Spells out that the graph stays, because the card is named after
+            // the graph and the two are easy to conflate.
+            Text(
+                "The chat on \"${chat.graphName}\" will be deleted. " +
+                    "The graph itself is kept."
+            )
+        },
+        confirmButton = { TextButton(onClick = onConfirm) { Text("Delete chat") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }
 
 @Composable
@@ -88,6 +176,14 @@ private fun ChatCard(chat: ChatSummary, onOpen: () -> Unit, onDelete: () -> Unit
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
+            // Labelled as a chat, not just named after its graph. Titling the
+            // card with the graph name alone made Delete read as deleting the
+            // graph itself.
+            Text(
+                "Chat",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
             Text(chat.graphName, style = MaterialTheme.typography.titleMedium)
             Text(
                 "${chat.answerCount} answered · ${relativeTime(chat.lastOpenedAt)}",
@@ -107,7 +203,7 @@ private fun ChatCard(chat: ChatSummary, onOpen: () -> Unit, onDelete: () -> Unit
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
             ) {
-                TextButton(onClick = onDelete) { Text("Delete") }
+                TextButton(onClick = onDelete) { Text("Delete chat") }
             }
         }
     }

@@ -84,4 +84,12 @@ interface SessionDao {
 
     @Query("DELETE FROM sessions WHERE sessionId = :sessionId")
     suspend fun delete(sessionId: String)
+
+    /**
+     * Retention prune. Keyed on lastOpenedAt rather than startedAt, so a chat
+     * someone keeps coming back to is never swept up because it began long ago.
+     * Returns how many rows went.
+     */
+    @Query("DELETE FROM sessions WHERE lastOpenedAt < :cutoff")
+    suspend fun deleteOpenedBefore(cutoff: Long): Int
 }
