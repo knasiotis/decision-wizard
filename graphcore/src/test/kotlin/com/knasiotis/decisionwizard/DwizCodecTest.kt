@@ -26,14 +26,15 @@ class DwizCodecTest {
     }
 
     /**
-     * v0.4 will put a zip behind this extension. Reading one now must say so
-     * plainly rather than failing as malformed JSON.
+     * A zip here is either a backup or, from v0.4, an attachment bundle. Either
+     * way the single-graph path must say so plainly and point somewhere useful,
+     * rather than failing as malformed JSON.
      */
     @Test
     fun `a zip is refused with an explanation, not a parse error`() {
         val zip = byteArrayOf(0x50, 0x4B, 0x03, 0x04) + ByteArray(64)
         val e = assertFailsWith<DwizFormatException> { DwizCodec.decode(zip) }
-        assertContains(e.message!!, "attachments")
+        assertContains(e.message!!, "Restore")
     }
 
     @Test

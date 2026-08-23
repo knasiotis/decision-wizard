@@ -3,10 +3,8 @@ package com.knasiotis.decisionwizard.ui.chats
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.knasiotis.decisionwizard.chat.ChatState
-import com.knasiotis.decisionwizard.data.LaunchBehaviour
 import com.knasiotis.decisionwizard.data.LibraryRepository
 import com.knasiotis.decisionwizard.data.SessionListRow
-import com.knasiotis.decisionwizard.data.SettingsStore
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -24,8 +22,7 @@ data class ChatSummary(
 )
 
 class ChatsViewModel(
-    private val repository: LibraryRepository,
-    private val settings: SettingsStore
+    private val repository: LibraryRepository
 ) : ViewModel() {
 
     val chats: StateFlow<List<ChatSummary>?> = repository.sessionList()
@@ -33,13 +30,6 @@ class ChatsViewModel(
         // null distinguishes "still loading" from "genuinely empty", so the
         // empty state does not flash on launch.
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-
-    val launchBehaviour: StateFlow<LaunchBehaviour> = settings.launchBehaviour
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LaunchBehaviour.RESUME_LAST)
-
-    fun setLaunchBehaviour(value: LaunchBehaviour) {
-        viewModelScope.launch { settings.setLaunchBehaviour(value) }
-    }
 
     fun delete(sessionId: String) {
         viewModelScope.launch { repository.deleteSession(sessionId) }

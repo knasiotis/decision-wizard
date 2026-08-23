@@ -196,7 +196,11 @@ looks like a broken button.
 5. **Node detail** — title, body, snippets, attachments, answer rows. Show
    inbound edges ("reached from: 3 nodes"), tappable.
 
-Bottom navigation: Chats / Graphs.
+Bottom navigation: Chats / Graphs / Settings.
+
+**Settings is a top-level destination, not an overflow menu**, and is grouped by
+the area each setting affects (Chats, Graphs, …). There is little in it today;
+the grouping exists so the next setting does not force another reshuffle.
 
 ---
 
@@ -224,6 +228,18 @@ The importer distinguishes them by **magic bytes**: a zip always starts with
 `PK\x03\x04`, anything else is parsed as bare JSON. One extension covers both
 forever, every v0.2 file keeps importing, and there is no migration to write.
 **Do not introduce a second extension for the zip.**
+
+### Backups
+
+A whole-library backup is a **plain `.zip` holding one `.dwiz` per graph**, not
+another custom extension. The point of a backup is that it stays useful without
+this app: it opens on a computer, and a single graph can be pulled out of it and
+sent on unchanged.
+
+Restore resolves every graph silently rather than asking about them one at a
+time: a newer revision updates in place, anything else is left alone. **Restoring
+your own backup onto a live library must be idempotent** — a restore that
+duplicated everything would be worse than useless.
 
 Attachments reference relative paths. Images are copied into app storage on
 import, never base64-inlined into the JSON.
@@ -337,6 +353,17 @@ workflow.
 
 Do not add `--no-daemon` to CI Gradle calls — it defeats `setup-gradle`'s
 caching. (Locally it is fine and used.)
+
+### Test builds during development
+
+Each build handed over for testing gets its own patch tag — `v0.2.1`, `v0.2.2`,
+… — so it installs over the previous one instead of sitting alongside it.
+`versionName` comes from the tag and `versionCode` from `github.run_number`,
+which is monotonic, so upgrades always move forward.
+
+These are signed with the release key, so **the first one cannot install over a
+debug build** — different signing key, and Android refuses the upgrade. Uninstall
+the debug build once; release-to-release upgrades are then clean.
 
 ### The release contract
 

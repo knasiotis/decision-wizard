@@ -21,6 +21,8 @@ class DwizFormatException(message: String, cause: Throwable? = null) : Exception
  * breaking the hand-editable constraint. The reader already distinguishes the
  * two by magic bytes, so v0.2 files keep importing forever and no second
  * extension is ever needed.
+ *
+ * A whole-library backup is a different thing and lives in [BackupArchive].
  */
 object DwizCodec {
 
@@ -34,7 +36,8 @@ object DwizCodec {
     fun decode(bytes: ByteArray): Graph {
         if (looksLikeZip(bytes)) {
             throw DwizFormatException(
-                "This file has attachments bundled with it, which this version cannot open yet."
+                "That looks like a backup or an attachment bundle, not a single graph. " +
+                    "Use Restore in Settings to read a backup."
             )
         }
         return decode(bytes.toString(Charsets.UTF_8))
@@ -60,8 +63,10 @@ object DwizCodec {
      * What to pre-fill in the system save dialog. The user can always override
      * it, so this only has to be reasonable, not unique.
      */
-    fun suggestedFileName(graph: Graph): String {
-        val slug = graph.name
+    fun suggestedFileName(graph: Graph): String = slug(graph.name) + "." + DWIZ_EXTENSION
+
+    internal fun slug(name: String): String {
+        val s = name
             .lowercase()
             .map { if (it.isLetterOrDigit()) it else '-' }
             .joinToString("")
@@ -70,6 +75,6 @@ object DwizCodec {
             .take(60)
             .trim('-')
 
-        return (slug.ifEmpty { "graph" }) + "." + DWIZ_EXTENSION
+        return s.ifEmpty { "graph" }
     }
 }

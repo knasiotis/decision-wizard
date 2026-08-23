@@ -38,6 +38,8 @@ import com.knasiotis.decisionwizard.ui.chats.ChatsScreen
 import com.knasiotis.decisionwizard.ui.chats.ChatsViewModel
 import com.knasiotis.decisionwizard.ui.graphs.GraphsScreen
 import com.knasiotis.decisionwizard.ui.graphs.GraphsViewModel
+import com.knasiotis.decisionwizard.ui.settings.SettingsScreen
+import com.knasiotis.decisionwizard.ui.settings.SettingsViewModel
 import kotlinx.coroutines.flow.first
 
 /**
@@ -51,6 +53,7 @@ private fun NavDestination?.isOn(route: String): Boolean =
 private object Routes {
     const val CHATS = "chats"
     const val GRAPHS = "graphs"
+    const val SETTINGS = "settings"
     const val NEW_CHAT = "chat/new/{graphId}"
     const val RESUME_CHAT = "chat/session/{sessionId}"
 
@@ -70,7 +73,8 @@ fun DecisionWizardApp(
 
     // The bottom bar belongs to the two top-level destinations only; a chat is
     // a full-screen task, not a tab.
-    val showBottomBar = route.isOn(Routes.CHATS) || route.isOn(Routes.GRAPHS)
+    val showBottomBar = route.isOn(Routes.CHATS) || route.isOn(Routes.GRAPHS) ||
+        route.isOn(Routes.SETTINGS)
 
     // A tapped .dwiz is handled on the Graphs screen, so go there first. The
     // import itself is triggered inside that screen, once it is composed.
@@ -104,7 +108,11 @@ fun DecisionWizardApp(
         bottomBar = {
             if (showBottomBar) {
                 NavigationBar {
-                    listOf(Routes.CHATS to "Chats", Routes.GRAPHS to "Graphs").forEach { (r, label) ->
+                    listOf(
+                        Routes.CHATS to "Chats",
+                        Routes.GRAPHS to "Graphs",
+                        Routes.SETTINGS to "Settings"
+                    ).forEach { (r, label) ->
                         NavigationBarItem(
                             selected = route.isOn(r),
                             onClick = {
@@ -132,7 +140,7 @@ fun DecisionWizardApp(
             composable(Routes.CHATS) {
                 val vm: ChatsViewModel = viewModel(
                     factory = viewModelFactory {
-                        initializer { ChatsViewModel(app.repository, app.settings) }
+                        initializer { ChatsViewModel(app.repository) }
                     }
                 )
                 ChatsScreen(
@@ -153,6 +161,15 @@ fun DecisionWizardApp(
                     pendingImportUri = pendingImportUri,
                     onPendingImportHandled = onPendingImportHandled
                 )
+            }
+
+            composable(Routes.SETTINGS) {
+                val vm: SettingsViewModel = viewModel(
+                    factory = viewModelFactory {
+                        initializer { SettingsViewModel(app.settings, app.repository, app.files) }
+                    }
+                )
+                SettingsScreen(viewModel = vm)
             }
 
             composable(Routes.NEW_CHAT) { entry ->
