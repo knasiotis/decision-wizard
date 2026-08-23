@@ -18,6 +18,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -111,6 +112,15 @@ private fun GraphPickerDialog(
     onPick: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
+    var query by remember { mutableStateOf("") }
+
+    // Substring rather than prefix: an agent looking for "Internet down" is as
+    // likely to type "down" as "inter". Trimmed so a stray space matches nothing.
+    val matches = remember(graphs, query) {
+        val q = query.trim()
+        if (q.isEmpty()) graphs else graphs.filter { it.name.contains(q, ignoreCase = true) }
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (graphs.isEmpty()) "No graphs yet" else "Start a chat on…") },
@@ -118,16 +128,35 @@ private fun GraphPickerDialog(
             if (graphs.isEmpty()) {
                 Text("Import a graph on the Graphs tab first, then a chat can run on it.")
             } else {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    graphs.forEach { graph ->
+                Column {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        label = { Text("Search") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (matches.isEmpty()) {
                         Text(
-                            text = graph.name,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onPick(graph.graphId) }
-                                .padding(vertical = 12.dp)
+                            "No graphs match \"$query\".",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 16.dp)
                         )
+                    } else {
+                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                            matches.forEach { graph ->
+                                Text(
+                                    text = graph.name,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onPick(graph.graphId) }
+                                        .padding(vertical = 12.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -167,7 +196,7 @@ private fun EmptyChats(modifier: Modifier = Modifier) {
     ) {
         Text("No chats yet", style = MaterialTheme.typography.titleMedium)
         Text(
-            "Open a graph to start one. Chats appear here once you answer the first question.",
+            "Tap New chat to pick a graph. Chats appear here once you answer the first question.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
