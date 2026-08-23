@@ -473,6 +473,12 @@ where the "New chat" button did not exist: the pattern had been broken by an
 earlier reformat, so the picker dialog and its state compiled while nothing could
 open them. Use an edit tool that errors when the pattern is absent.
 
+**Grep the APK for ASCII-only fragments.** `strings` ends a run at the first
+non-ASCII byte, so a literal containing an em dash, an ellipsis or an accent
+never appears whole and a grep for it returns nothing — which reads exactly like
+the code being missing. Interpolated strings are split at the `$` too. Search for
+a plain ASCII substring instead.
+
 **Verify the user-visible strings in the built APK, not just that a class
 exists.** Grepping the dex for `GraphPickerDialog` "confirmed" that same broken
 build — the dialog was present and unreachable. The check that would have caught

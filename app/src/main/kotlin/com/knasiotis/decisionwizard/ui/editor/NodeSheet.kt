@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.knasiotis.decisionwizard.editor.DeleteOps
 import com.knasiotis.decisionwizard.model.Graph
+import com.knasiotis.decisionwizard.model.Issue
 import com.knasiotis.decisionwizard.model.Node
 
 /**
@@ -36,6 +37,7 @@ import com.knasiotis.decisionwizard.model.Node
 fun NodeSheet(
     graph: Graph,
     node: Node,
+    issues: List<Issue>,
     viewModel: EditorViewModel,
     onDismiss: () -> Unit
 ) {
@@ -55,6 +57,18 @@ fun NodeSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
+            // The bubble only has room for a count. Saying what each warning
+            // actually is belongs here, or the count is just an unexplained
+            // complaint.
+            issues.forEach { issue ->
+                Text(
+                    issue.message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+            }
+
             HorizontalDivider()
 
             SheetAction("Edit") { editing = true }

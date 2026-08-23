@@ -143,6 +143,7 @@ fun EditorScreen(
                     NodeSheet(
                         graph = graph,
                         node = node,
+                        issues = ui.issuesByNode[node.id].orEmpty(),
                         viewModel = viewModel,
                         onDismiss = { selected = null }
                     )
@@ -347,7 +348,7 @@ private fun NodeBubble(
             }
             if (warnings > 0) {
                 Text(
-                    if (warnings == 1) "1 warning" else "$warnings warnings",
+                    if (warnings == 1) "1 warning — tap" else "$warnings warnings — tap",
                     style = MaterialTheme.typography.labelSmall,
                     color = colours.error
                 )
