@@ -499,6 +499,13 @@ to match `<kotlin>-<ksp>` (e.g. `2.2.21-2.0.5`); that scheme is gone, and there 
 no `2.4.10-*` build to hunt for. KSP and the Room Gradle plugin both apply
 cleanly on top of AGP 9's built-in Kotlin.
 
+**Bump the Room version when the shape of `stateJson` changes**, not only when a
+column does. The graph body and the chat state are JSON blobs — a locked
+decision — and Room cannot see inside them, so it keeps rows the new code cannot
+parse. That shipped a build which crashed on launch until the user cleared the
+app's data. Loading a session now also refuses an unparseable row instead of
+throwing: one bad row must never take the app down.
+
 **The database currently destroys itself on any schema change.**
 `fallbackToDestructiveMigration` is on **temporarily**, because nobody depends on
 this database yet and migration code written only to preserve throwaway test data

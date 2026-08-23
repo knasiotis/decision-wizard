@@ -14,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -30,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
@@ -55,7 +57,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, modifier: Modifier = Modifier) 
     val message by viewModel.message.collectAsStateWithLifecycle()
 
     val snackbars = remember { SnackbarHostState() }
-    var customOpen by remember { mutableStateOf(false) }
+    var customOpen by rememberSaveable { mutableStateOf(false) }
 
     val backupSaver = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip")
@@ -112,8 +114,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, modifier: Modifier = Modifier) 
 
             Setting(
                 title = "Delete old chats",
-                description = "Counted from when a chat was last opened, so one you " +
-                    "keep coming back to is never swept up because it began long ago."
+                description = "Retain chats for…"
             ) {
                 ChatRetention.PRESETS.forEach { days ->
                     Choice(
@@ -139,12 +140,10 @@ fun SettingsScreen(viewModel: SettingsViewModel, modifier: Modifier = Modifier) 
 
             Setting(
                 title = "Back up every graph",
-                description = "Writes a .zip holding one .dwiz per graph. " +
-                    "An ordinary zip, so it opens on a computer and a single graph " +
-                    "can be pulled out and sent on."
+                description = "Export a .zip containing all graphs"
             ) {
                 Action(
-                    label = if (graphCount == 1) "Back up 1 graph" else "Back up $graphCount graphs",
+                    label = "Export",
                     enabled = graphCount > 0,
                     onClick = viewModel::askBackup
                 )
@@ -152,12 +151,10 @@ fun SettingsScreen(viewModel: SettingsViewModel, modifier: Modifier = Modifier) 
 
             Setting(
                 title = "Restore from a backup",
-                description = "Adds graphs the library does not have and updates any " +
-                    "the backup holds a newer revision of. Nothing is overwritten " +
-                    "with an older copy, and nothing is duplicated."
+                description = "Restore graphs from a .zip"
             ) {
                 Action(
-                    label = "Choose a backup",
+                    label = "Restore",
                     enabled = true,
                     onClick = { restorePicker.launch(arrayOf("*/*")) }
                 )
@@ -243,12 +240,6 @@ private fun About() {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Text(
-            "Works entirely offline. No network, no accounts, no telemetry.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp)
-        )
         if (revealed) {
             Text(
                 "Made in Yugoslavia",
@@ -306,5 +297,9 @@ private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun Action(label: String, enabled: Boolean, onClick: () -> Unit) {
-    TextButton(onClick = onClick, enabled = enabled) { Text(label) }
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.padding(top = 4.dp)
+    ) { Text(label) }
 }

@@ -32,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -68,7 +69,7 @@ fun ChatScreen(
     onRestart: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var renaming by remember { mutableStateOf(false) }
+    var renaming by rememberSaveable { mutableStateOf(false) }
     // Derived from the session every recomposition, never cached — the same rule
     // the canvas layout follows.
     // Takes no graph: everything on screen was recorded when it was asked.

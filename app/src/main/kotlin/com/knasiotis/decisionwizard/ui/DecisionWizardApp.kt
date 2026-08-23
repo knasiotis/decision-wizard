@@ -16,6 +16,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -95,10 +96,13 @@ fun DecisionWizardApp(
     }
 
     // Anything the user does themselves outranks the launch preference. Reading
-    // the setting, pruning and finding the last session all suspend, and tapping
-    // "New chat" inside that window used to be interrupted by this navigating
-    // away underneath the open dialog.
-    var userActed by remember { mutableStateOf(false) }
+    // the setting, pruning and finding the last session all suspend, and acting
+    // inside that window used to be interrupted by this navigating away
+    // underneath an open dialog.
+    //
+    // Set from the navigation bar, which every deliberate move passes through,
+    // as well as from the screens that start something.
+    var userActed by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         // A tapped file always wins too — the user asked for that file, not for
@@ -139,6 +143,7 @@ fun DecisionWizardApp(
                         NavigationBarItem(
                             selected = route.isOn(r),
                             onClick = {
+                                userActed = true
                                 navController.navigate(r) {
                                     popUpTo(navController.graph.findStartDestination().id) {
                                         saveState = true
@@ -189,7 +194,11 @@ fun DecisionWizardApp(
                 )
                 GraphsScreen(
                     viewModel = vm,
-                    onOpenEditor = { navController.navigate(Routes.editor(it)) },
+                    onUserActed = { userActed = true },
+                    onOpenEditor = {
+                        userActed = true
+                        navController.navigate(Routes.editor(it))
+                    },
                     pendingImportUri = pendingImportUri,
                     onPendingImportHandled = onPendingImportHandled
                 )

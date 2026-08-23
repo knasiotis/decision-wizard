@@ -31,6 +31,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,6 +47,8 @@ import com.knasiotis.decisionwizard.data.GraphEntity
 fun GraphsScreen(
     viewModel: GraphsViewModel,
     onOpenEditor: (String) -> Unit,
+    /** Tells the host the user is driving, so startup navigation stands down. */
+    onUserActed: () -> Unit = {},
     modifier: Modifier = Modifier,
     /** A .dwiz the user tapped outside the app. Imported once, then released. */
     pendingImportUri: Uri? = null,
@@ -58,8 +61,8 @@ fun GraphsScreen(
     val message by viewModel.message.collectAsStateWithLifecycle()
 
     val snackbars = remember { SnackbarHostState() }
-    var creating by remember { mutableStateOf(false) }
-    var namingNew by remember { mutableStateOf(false) }
+    var creating by rememberSaveable { mutableStateOf(false) }
+    var namingNew by rememberSaveable { mutableStateOf(false) }
     val created by viewModel.created.collectAsStateWithLifecycle()
 
     // A freshly created graph goes straight to the editor; there is nothing to
@@ -106,7 +109,10 @@ fun GraphsScreen(
         snackbarHost = { SnackbarHost(snackbars) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = { creating = true },
+                onClick = {
+                    onUserActed()
+                    creating = true
+                },
                 text = { Text("Create") },
                 icon = { Icon(painterResource(R.drawable.ic_plus), contentDescription = null) }
             )

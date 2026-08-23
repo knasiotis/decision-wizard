@@ -78,12 +78,21 @@ class LibraryRepository(
      */
     suspend fun loadSession(sessionId: String): LoadedSession? {
         val row = sessions.byId(sessionId) ?: return null
+
+        // A row this build cannot read is treated as absent rather than thrown.
+        // The blob is versioned by the database schema, so a stale one should
+        // already have been cleared — but one unreadable row must never be able
+        // to take the app down on launch.
+        val state = runCatching {
+            Json.decodeFromString(ChatState.serializer(), row.stateJson)
+        }.getOrNull() ?: return null
+
         val live = load(row.graphId)
 
         return LoadedSession(
             graph = live,
             graphName = live?.name ?: row.graphName,
-            state = Json.decodeFromString(ChatState.serializer(), row.stateJson),
+            state = state,
             title = row.title,
             startedAt = row.startedAt,
             readOnly = live == null

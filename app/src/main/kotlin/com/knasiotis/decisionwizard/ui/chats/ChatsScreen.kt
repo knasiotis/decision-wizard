@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,7 +53,7 @@ fun ChatsScreen(
     val chats by viewModel.chats.collectAsStateWithLifecycle()
     val graphs by viewModel.graphs.collectAsStateWithLifecycle()
     var pendingDelete by remember { mutableStateOf<ChatSummary?>(null) }
-    var picking by remember { mutableStateOf(false) }
+    var picking by rememberSaveable { mutableStateOf(false) }
     // Set once a graph is chosen; the naming step runs against it.
     var naming by remember { mutableStateOf<GraphSummary?>(null) }
 
@@ -152,9 +153,9 @@ private fun GraphPickerDialog(
         title = {
             Text(
                 when {
-                    graphs == null -> "Start a chat on…"
+                    graphs == null -> "Select graph…"
                     graphs.isEmpty() -> "No graphs yet"
-                    else -> "Start a chat on…"
+                    else -> "Select graph…"
                 }
             )
         },

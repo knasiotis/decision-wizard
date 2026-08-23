@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [GraphEntity::class, SessionEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class DecisionWizardDatabase : RoomDatabase() {
@@ -28,6 +28,10 @@ abstract class DecisionWizardDatabase : RoomDatabase() {
 
         private fun build(context: Context): DecisionWizardDatabase =
             Room.databaseBuilder(context, DecisionWizardDatabase::class.java, NAME)
+                // NOTE: bump the version whenever the *shape of stateJson*
+                // changes, not only when a column does. Room cannot see inside a
+                // blob, so it will happily keep rows this build cannot parse.
+                //
                 // TEMPORARY, and it must not survive first real use.
                 //
                 // Nobody depends on this database yet, so a schema change wipes

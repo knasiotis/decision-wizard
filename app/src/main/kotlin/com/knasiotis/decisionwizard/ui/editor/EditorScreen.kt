@@ -29,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,7 +65,7 @@ fun EditorScreen(
 ) {
     val ui by viewModel.state.collectAsStateWithLifecycle()
 
-    var confirmingExit by remember { mutableStateOf(false) }
+    var confirmingExit by rememberSaveable { mutableStateOf(false) }
 
     // Leaving with unsaved work asks rather than guessing. Silently saving
     // would make experiments permanent; silently discarding would lose
@@ -78,7 +79,7 @@ fun EditorScreen(
     var scale by remember { mutableFloatStateOf(1f) }
     var pan by remember { mutableStateOf(Offset.Zero) }
     var selected by remember { mutableStateOf<String?>(null) }
-    var renamingGraph by remember { mutableStateOf(false) }
+    var renamingGraph by rememberSaveable { mutableStateOf(false) }
 
     // Pan and zoom are never committed to the undo stack. Camera position is
     // not a document change.
