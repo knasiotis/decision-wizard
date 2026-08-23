@@ -475,9 +475,10 @@ Not done, in the order agreed:
    easy to forget because it compiles fine.
 5. Rewrite `README.md` from scratch.
 
-Note for whoever picks up the first release: the signed `v0.1.0` APK **cannot be
-installed over the debug build** — different signing keys, so Android refuses the
-upgrade. Uninstall the debug build first.
+Note for whoever picks up the first release: a signed APK **cannot be installed
+over the debug build** — different signing keys, so Android refuses the upgrade.
+Uninstall the debug build first. This applies to the `workflow_dispatch` signing
+rehearsal too, not just to `v0.2.0`.
 
 ### Open questions
 
