@@ -3,6 +3,7 @@ package com.knasiotis.decisionwizard.ui.editor
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -217,6 +218,9 @@ private fun LinkDialog(
             onConfirm = { title, details ->
                 onAddChild(chosenAnswer, newLabel.ifBlank { null }, title, details)
             },
+            // Choosing the condition is one tap and easy to get wrong. Going
+            // back must not mean starting the whole action again.
+            onBack = { composing = false },
             onDismiss = onDismiss
         )
         return
@@ -258,7 +262,12 @@ private fun LinkDialog(
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+            confirmButton = {
+                Row {
+                    TextButton(onClick = { pickingTarget = false }) { Text("Back") }
+                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                }
+            }
         )
         return
     }
@@ -304,6 +313,7 @@ private fun LinkDialog(
 @Composable
 private fun NewChildDialog(
     onConfirm: (title: String, details: String) -> Unit,
+    onBack: () -> Unit,
     onDismiss: () -> Unit
 ) {
     var title by remember { mutableStateOf("") }
@@ -337,7 +347,12 @@ private fun NewChildDialog(
                 enabled = title.isNotBlank()
             ) { Text("Add") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = {
+            Row {
+                TextButton(onClick = onBack) { Text("Back") }
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+            }
+        }
     )
 }
 
