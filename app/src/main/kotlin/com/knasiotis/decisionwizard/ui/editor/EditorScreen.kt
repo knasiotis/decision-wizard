@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -52,13 +53,13 @@ fun EditorScreen(
 ) {
     val ui by viewModel.state.collectAsStateWithLifecycle()
 
-    // Leaving saves. Graphs are hand-authored work, and losing an edit silently
-    // because the user did not spot a Save button is worse than an extra
-    // revision. Undo is the escape hatch, per the project's preference for undo
-    // over confirmation dialogs.
+    var confirmingExit by remember { mutableStateOf(false) }
+
+    // Leaving with unsaved work asks rather than guessing. Silently saving
+    // would make experiments permanent; silently discarding would lose
+    // hand-authored work. Only ask when there is actually something at stake.
     fun leave() {
-        viewModel.save()
-        onBack()
+        if (ui.dirty) confirmingExit = true else onBack()
     }
 
     BackHandler { leave() }
@@ -142,6 +143,27 @@ fun EditorScreen(
                 }
             }
         }
+    }
+
+    if (confirmingExit) {
+        AlertDialog(
+            onDismissRequest = { confirmingExit = false },
+            title = { Text("Keep your changes?") },
+            text = { Text("This graph has edits that have not been saved.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.save()
+                    confirmingExit = false
+                    onBack()
+                }) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    confirmingExit = false
+                    onBack()
+                }) { Text("Discard") }
+            }
+        )
     }
 
     if (renamingGraph) {

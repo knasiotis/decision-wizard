@@ -1,9 +1,8 @@
 package com.knasiotis.decisionwizard.data
 
 import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Upsert
 import com.knasiotis.decisionwizard.library.GraphSummary
 import kotlinx.coroutines.flow.Flow
 
@@ -26,8 +25,13 @@ interface GraphDao {
     @Query("SELECT name FROM graphs")
     suspend fun allNames(): List<String>
 
-    /** REPLACE is what makes "update an existing graph" a single call. */
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    /**
+     * @Upsert, never @Insert(REPLACE). SQLite implements REPLACE as DELETE plus
+     * INSERT, and that DELETE fires the ON DELETE CASCADE on sessions — so
+     * saving a graph silently destroyed every chat that ran on it. @Upsert
+     * compiles to ON CONFLICT DO UPDATE, which touches no other table.
+     */
+    @Upsert
     suspend fun upsert(graph: GraphEntity)
 
     @Query("DELETE FROM graphs WHERE graphId = :graphId")
@@ -81,7 +85,8 @@ interface SessionDao {
     @Query("SELECT COUNT(*) FROM sessions WHERE graphId = :graphId")
     suspend fun countForGraph(graphId: String): Int
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    /** Same reasoning as graphs: never REPLACE a row other rows may depend on. */
+    @Upsert
     suspend fun upsert(session: SessionEntity)
 
     @Query("UPDATE sessions SET title = :title WHERE sessionId = :sessionId")

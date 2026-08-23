@@ -436,6 +436,17 @@ the cycle is broken *somewhere* and that stubs are reciprocal.
 and still uses `kotlin-jvm` normally. The Compose compiler plugin applies on top
 of AGP's built-in Kotlin without issue.
 
+**Never use `@Insert(onConflict = REPLACE)` on a table other rows depend on.**
+SQLite implements REPLACE as DELETE plus INSERT, and that DELETE fires
+`ON DELETE CASCADE`. Saving a graph therefore destroyed every chat that ran on
+it — a rename looked like it deleted the user's chats. Use **`@Upsert`**, which
+compiles to `ON CONFLICT DO UPDATE` and touches no other table. Check the
+generated SQL when in doubt:
+
+```bash
+find app/build -name 'GraphDao_Impl.kt' | xargs grep -n 'INSERT\|UPDATE'
+```
+
 **Never edit code with blind string replacement.** A `sed`/`str.replace` whose
 pattern no longer matches does nothing and reports success. This shipped a build
 where the "New chat" button did not exist: the pattern had been broken by an
