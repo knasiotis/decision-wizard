@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -18,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -32,6 +34,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.knasiotis.decisionwizard.DecisionWizardApplication
+import com.knasiotis.decisionwizard.R
 import com.knasiotis.decisionwizard.data.LaunchBehaviour
 import com.knasiotis.decisionwizard.ui.chat.ChatViewModel
 import com.knasiotis.decisionwizard.ui.chats.ChatsScreen
@@ -129,10 +132,10 @@ fun DecisionWizardApp(
             if (showBottomBar) {
                 NavigationBar {
                     listOf(
-                        Routes.CHATS to "Chats",
-                        Routes.GRAPHS to "Graphs",
-                        Routes.SETTINGS to "Settings"
-                    ).forEach { (r, label) ->
+                        Triple(Routes.CHATS, "Chats", R.drawable.ic_chats),
+                        Triple(Routes.GRAPHS, "Graphs", R.drawable.ic_graphs),
+                        Triple(Routes.SETTINGS, "Settings", R.drawable.ic_settings)
+                    ).forEach { (r, label, icon) ->
                         NavigationBarItem(
                             selected = route.isOn(r),
                             onClick = {
@@ -144,7 +147,9 @@ fun DecisionWizardApp(
                                     restoreState = true
                                 }
                             },
-                            icon = {},
+                            icon = {
+                                Icon(painterResource(icon), contentDescription = null)
+                            },
                             label = { Text(label) }
                         )
                     }

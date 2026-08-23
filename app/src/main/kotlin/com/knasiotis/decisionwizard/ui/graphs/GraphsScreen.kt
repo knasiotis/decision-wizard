@@ -17,6 +17,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -35,7 +36,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.painterResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.knasiotis.decisionwizard.R
 import com.knasiotis.decisionwizard.data.GraphEntity
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -105,7 +108,7 @@ fun GraphsScreen(
             ExtendedFloatingActionButton(
                 onClick = { creating = true },
                 text = { Text("Create") },
-                icon = {}
+                icon = { Icon(painterResource(R.drawable.ic_plus), contentDescription = null) }
             )
         }
     ) { insets ->
