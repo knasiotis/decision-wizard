@@ -37,7 +37,7 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import com.knasiotis.decisionwizard.chat.ChatEngine
-import com.knasiotis.decisionwizard.ui.chat.ChatTitleDialog
+import com.knasiotis.decisionwizard.ui.common.NameDialog
 import com.knasiotis.decisionwizard.chat.ChatState
 import com.knasiotis.decisionwizard.chat.ChatTurn
 import com.knasiotis.decisionwizard.model.Graph
@@ -116,7 +116,9 @@ fun ChatScreen(
     }
 
     if (renaming) {
-        ChatTitleDialog(
+        NameDialog(
+            dialogTitle = "Rename this chat",
+            fieldLabel = "Title",
             initial = title,
             confirmLabel = "Rename",
             onConfirm = {

@@ -40,6 +40,7 @@ import com.knasiotis.decisionwizard.layout.GraphLayout
 import com.knasiotis.decisionwizard.layout.NODE_WIDTH
 import com.knasiotis.decisionwizard.model.Graph
 import com.knasiotis.decisionwizard.model.Issue
+import com.knasiotis.decisionwizard.ui.common.NameDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,6 +54,7 @@ fun EditorScreen(
     var scale by remember { mutableFloatStateOf(1f) }
     var pan by remember { mutableStateOf(Offset.Zero) }
     var selected by remember { mutableStateOf<String?>(null) }
+    var renamingGraph by remember { mutableStateOf(false) }
 
     // Pan and zoom are never committed to the undo stack. Camera position is
     // not a document change.
@@ -69,7 +71,15 @@ fun EditorScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text(ui.graph?.name ?: "Editor") },
+                title = {
+                    // Tapping the name renames the graph, matching the chat screen.
+                    Text(
+                        text = ui.graph?.name ?: "Editor",
+                        modifier = Modifier.clickable(enabled = ui.graph != null) {
+                            renamingGraph = true
+                        }
+                    )
+                },
                 navigationIcon = { TextButton(onClick = onBack) { Text("Back") } },
                 actions = {
                     TextButton(onClick = viewModel::undo, enabled = ui.canUndo) { Text("Undo") }
@@ -107,8 +117,33 @@ fun EditorScreen(
                         transformOrigin = TransformOrigin(0f, 0f)
                     }
                 )
+
+                // Selecting a bubble opens the actions for it.
+                val node = selected?.let { graph.byId[it] }
+                if (node != null) {
+                    NodeSheet(
+                        graph = graph,
+                        node = node,
+                        viewModel = viewModel,
+                        onDismiss = { selected = null }
+                    )
+                }
             }
         }
+    }
+
+    if (renamingGraph) {
+        NameDialog(
+            dialogTitle = "Rename this graph",
+            fieldLabel = "Name",
+            initial = ui.graph?.name.orEmpty(),
+            confirmLabel = "Rename",
+            onConfirm = {
+                viewModel.renameGraph(it)
+                renamingGraph = false
+            },
+            onDismiss = { renamingGraph = false }
+        )
     }
 }
 

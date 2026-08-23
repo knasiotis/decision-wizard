@@ -34,7 +34,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.knasiotis.decisionwizard.library.GraphSummary
-import com.knasiotis.decisionwizard.ui.chat.ChatTitleDialog
+import com.knasiotis.decisionwizard.ui.common.NameDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -97,7 +97,9 @@ fun ChatsScreen(
     }
 
     naming?.let { graph ->
-        ChatTitleDialog(
+        NameDialog(
+            dialogTitle = "Name this chat",
+            fieldLabel = "Title",
             initial = graph.name,
             confirmLabel = "Start",
             onConfirm = { title ->
