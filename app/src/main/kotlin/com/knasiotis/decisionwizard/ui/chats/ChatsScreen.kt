@@ -266,7 +266,13 @@ private fun ChatCard(chat: ChatSummary, onOpen: () -> Unit, onDelete: () -> Unit
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                "${chat.answerCount} answered · ${relativeTime(chat.lastOpenedAt)}",
+                // "0 answered" reads like a fault rather than a chat nobody has
+                // got to yet.
+                if (chat.answerCount == 0) {
+                    "Not started · ${relativeTime(chat.lastOpenedAt)}"
+                } else {
+                    "${chat.answerCount} answered · ${relativeTime(chat.lastOpenedAt)}"
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

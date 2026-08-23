@@ -77,13 +77,16 @@ class ChatViewModel(
             _state.value = ChatUiState(loading = false, missing = true)
             return
         }
+        val started = ChatEngine.start(graph)
+        val title = initialTitle.ifBlank { graph.name }
         _state.value = ChatUiState(
             graph = graph,
             graphName = graph.name,
-            session = ChatEngine.start(graph),
-            title = initialTitle.ifBlank { graph.name },
+            session = started,
+            title = title,
             loading = false
         )
+        persist(graph, started, title)
     }
 
     fun answer(answerId: String) {
@@ -110,28 +113,21 @@ class ChatViewModel(
         viewModelScope.launch { persist(graph, next, _state.value.title) }
     }
 
-    /**
-     * Renaming before anything is answered only changes local state, because the
-     * row does not exist yet — it is written with the new title on the first
-     * answer.
-     */
     fun rename(title: String) {
         val clean = title.trim().ifBlank { return }
         _state.value = _state.value.copy(title = clean)
-        viewModelScope.launch {
-            if (_state.value.session.answered.isNotEmpty()) {
-                repository.renameSession(id, clean)
-            }
-        }
+        // The row exists from creation, so a rename always has something to
+        // write to — including on a chat nothing has been answered in yet.
+        viewModelScope.launch { repository.renameSession(id, clean) }
     }
 
     /**
-     * Only written once something has actually been answered. Saving on open
-     * would fill the Chats list with empty sessions every time a graph is
-     * tapped, and an unanswered session has nothing to resume anyway.
+     * Written from the moment the chat is created, not from its first answer.
+     * Naming a chat and starting it is a deliberate act, so it should appear in
+     * the list straight away and be there to resume — an empty chat the user
+     * asked for is not clutter.
      */
     private suspend fun persist(graph: Graph, session: ChatState, title: String) {
-        if (session.answered.isEmpty()) return
         repository.saveSession(id, graph, session, title, startedAt)
     }
 }
