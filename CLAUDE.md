@@ -99,15 +99,17 @@ was taken. Editing or deleting a graph afterwards must never rewrite what was
 said — a chat is a record of a conversation that happened, and a script rewrite
 does not change a recording of the performance.
 
-**Only the live question is resolved against the graph**, at the moment of
-interaction. So the next step always follows the flow as it is now, while every
-step already taken is fixed. Re-answering an earlier question goes through the
-same path, so a rewind follows the current flow too.
+**The question waiting for an answer is a record too.** It was already asked, so
+editing it in the graph must not rewrite it on screen. It is captured the moment
+it is reached.
 
-`ChatEngine.turns(graph, state)` therefore takes a **nullable** graph: with none
-— because it was deleted — the record still renders in full, minus the live
-question. That is what makes a chat outlive its graph, and it is why sessions
-need no snapshot of the graph body, only its name for the header.
+**The graph is read at exactly one moment: when an answer is tapped**, to find
+where that answer leads and to capture the question it leads to. From then on
+that question is history. `turns()` therefore takes no graph at all — if
+rendering needs the graph, the model has drifted back.
+
+That is what makes a chat outlive its graph, and why sessions need no snapshot
+of the graph body — only its name, for the header.
 
 ---
 

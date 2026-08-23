@@ -65,8 +65,9 @@ fun ChatScreen(
     var renaming by remember { mutableStateOf(false) }
     // Derived from the session every recomposition, never cached — the same rule
     // the canvas layout follows.
-    val turns = ChatEngine.turns(graph, state)
-    val finished = ChatEngine.isFinished(graph, state)
+    // Takes no graph: everything on screen was recorded when it was asked.
+    val turns = ChatEngine.turns(state)
+    val finished = ChatEngine.isFinished(state)
     val deadEnd = ChatEngine.isDeadEnd(state)
 
     val listState = rememberLazyListState()

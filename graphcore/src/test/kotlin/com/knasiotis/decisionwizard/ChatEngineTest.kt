@@ -19,25 +19,25 @@ class ChatEngineTest {
     @Test
     fun `a session starts at the root`() {
         val state = ChatEngine.start(graph)
-        assertEquals("n-power", state.currentNodeId)
+        assertEquals("n-power", state.current?.nodeId)
         assertTrue(state.answered.isEmpty())
-        assertFalse(ChatEngine.isFinished(graph, state))
+        assertFalse(ChatEngine.isFinished(state))
     }
 
     @Test
     fun `answering walks to the target node`() {
         val state = ChatEngine.start(graph).take("e-1")
-        assertEquals("n-lights", state.currentNodeId)
+        assertEquals("n-lights", state.current?.nodeId)
         assertEquals(1, state.answered.size)
-        assertEquals("n-power", state.answered.single().nodeId)
+        assertEquals("n-power", state.answered.single().turn.nodeId)
     }
 
     @Test
     fun `a node with no answers ends the session`() {
         // n-power -> No -> n-plug -> Still dead -> n-swap-psu (an endpoint)
         val state = ChatEngine.start(graph).take("e-2").take("e-4")
-        assertEquals("n-swap-psu", state.currentNodeId)
-        assertTrue(ChatEngine.isFinished(graph, state))
+        assertEquals("n-swap-psu", state.current?.nodeId)
+        assertTrue(ChatEngine.isFinished(state))
     }
 
     @Test
@@ -54,7 +54,7 @@ class ChatEngineTest {
 
         val back = assertNotNull(ChatEngine.rewindTo(state, 1))
         assertEquals(1, back.answered.size)
-        assertEquals("n-lights", back.currentNodeId, "back at the question that step 1 answered")
+        assertEquals("n-lights", back.current?.nodeId, "back at the question that step 1 answered")
     }
 
     @Test
@@ -78,7 +78,7 @@ class ChatEngineTest {
         val switched = assertNotNull(ChatEngine.rewindAndAnswer(graph, state, 1, "e-7"))
         assertEquals(2, switched.answered.size)
         assertEquals("e-7", switched.answered[1].answerId)
-        assertEquals("n-cable", switched.currentNodeId)
+        assertEquals("n-cable", switched.current?.nodeId)
     }
 
     /** Cycles are legal, so a node can legitimately be visited more than once. */
@@ -91,11 +91,11 @@ class ChatEngineTest {
             .take("e-13")  // n-restart-> n-recheck
             .take("e-14")  // n-recheck-> n-cable   (round the loop)
 
-        assertEquals("n-cable", state.currentNodeId, "back at the question we already answered")
-        assertEquals(1, state.answered.count { it.nodeId == "n-cable" }, "answered once so far")
+        assertEquals("n-cable", state.current?.nodeId, "back at the question we already answered")
+        assertEquals(1, state.answered.count { it.turn.nodeId == "n-cable" }, "answered once so far")
         assertEquals(
             2,
-            ChatEngine.turns(graph, state).count { it.nodeId == "n-cable" },
+            ChatEngine.turns(state).count { it.nodeId == "n-cable" },
             "the transcript shows the node twice: once answered, once live"
         )
     }
@@ -108,9 +108,9 @@ class ChatEngineTest {
         )
         val state = assertNotNull(ChatEngine.answer(g, ChatEngine.start(g), "e1"))
 
-        assertNull(state.currentNodeId)
+        assertNull(state.current)
         assertTrue(ChatEngine.isDeadEnd(state))
-        assertFalse(ChatEngine.isFinished(g, state))
+        assertFalse(ChatEngine.isFinished(state))
     }
 
     @Test
@@ -121,7 +121,7 @@ class ChatEngineTest {
     @Test
     fun `turns lists every answered question then the live one`() {
         val state = ChatEngine.start(graph).take("e-1").take("e-7")
-        val turns = ChatEngine.turns(graph, state)
+        val turns = ChatEngine.turns(state)
 
         assertEquals(3, turns.size)
         assertEquals(listOf("n-power", "n-lights", "n-cable"), turns.map { it.nodeId })
@@ -135,7 +135,7 @@ class ChatEngineTest {
         val g = Fixtures.graph("a", Fixtures.node("a", Fixtures.answer("e1", "Yes", null)))
         val state = assertNotNull(ChatEngine.answer(g, ChatEngine.start(g), "e1"))
 
-        val turns = ChatEngine.turns(g, state)
+        val turns = ChatEngine.turns(state)
         assertEquals(1, turns.size)
         assertFalse(turns.single().isLive)
     }
@@ -169,7 +169,7 @@ class ChatRecordTest {
             graph.byId.getValue("n-power").copy(title = "COMPLETELY DIFFERENT")
         )
 
-        val turn = ChatEngine.turns(edited, state).first()
+        val turn = ChatEngine.turns(state).first()
         assertEquals("Is the router powered on?", turn.question)
         assertEquals("Yes", turn.options.single { it.id == "e-1" }.label)
     }
@@ -179,37 +179,67 @@ class ChatRecordTest {
         val state = ChatEngine.start(graph).take("e-1").take("e-7")
         val without = graph.removeNode("n-power")
 
-        val turns = ChatEngine.turns(without, state)
+        val turns = ChatEngine.turns(state)
         assertEquals("Is the router powered on?", turns.first().question)
         assertEquals(3, turns.size, "two records plus the live question")
     }
 
-    /** With no graph at all the record is still a complete account. */
+    /** Rendering needs no graph at all: everything on screen was recorded. */
     @Test
     fun `the record renders without any graph`() {
         val state = ChatEngine.start(graph).take("e-1").take("e-7")
-        val turns = ChatEngine.turns(null, state)
+        val turns = ChatEngine.turns(state)
 
-        assertEquals(2, turns.size, "no live question without a graph")
-        assertTrue(turns.none { it.isLive })
+        assertEquals(3, turns.size, "two answered plus the question being asked")
         assertEquals("Is the router powered on?", turns.first().question)
+        assertEquals("Reseat the WAN cable", turns.last().question)
+        assertTrue(turns.last().isLive)
     }
 
-    /** The next step is read from the graph as it is now, not as it was. */
+    /**
+     * The question already on screen was asked before the edit, so it does not
+     * change underneath the user — the whole point of the record.
+     */
     @Test
-    fun `the live question follows the current graph`() {
+    fun `editing the question being asked does not rewrite it`() {
+        val state = ChatEngine.start(graph).take("e-1")
+        graph.replaceNode(graph.byId.getValue("n-lights").copy(title = "What colour now?"))
+
+        assertEquals(
+            "What colour is the internet LED?",
+            ChatEngine.turns(state).last().question
+        )
+    }
+
+    /** The graph is read at one moment only: when an answer is tapped. */
+    @Test
+    fun `the next question is fetched from the graph on interaction`() {
         val state = ChatEngine.start(graph).take("e-1")
         val edited = graph.replaceNode(
-            graph.byId.getValue("n-lights").copy(title = "What colour now?")
+            graph.byId.getValue("n-cable").copy(title = "Reseat it properly")
         )
-        assertEquals("What colour now?", ChatEngine.turns(edited, state).last().question)
+
+        val next = assertNotNull(ChatEngine.answer(edited, state, "e-7"))
+        assertEquals("Reseat it properly", ChatEngine.turns(next).last().question)
+    }
+
+    /** Re-pointing an answer sends the next tap somewhere new, retroactively. */
+    @Test
+    fun `following an answer uses where it leads now`() {
+        val state = ChatEngine.start(graph)
+        val rerouted = graph.replaceNode(
+            graph.byId.getValue("n-power").retarget("e-1", "n-escalate")
+        )
+
+        val next = assertNotNull(ChatEngine.answer(rerouted, state, "e-1"))
+        assertEquals("n-escalate", next.current?.nodeId)
     }
 
     @Test
     fun `snippets are captured with the turn`() {
         // n-power -> No -> n-plug, which carries a ticket note.
         val state = ChatEngine.start(graph).take("e-2").take("e-4")
-        val plug = ChatEngine.turns(graph, state).single { it.nodeId == "n-plug" }
+        val plug = ChatEngine.turns(state).single { it.nodeId == "n-plug" }
         assertEquals(1, plug.snippets.size)
     }
 
@@ -230,6 +260,6 @@ class ChatRecordTest {
         )
 
         val switched = assertNotNull(ChatEngine.rewindAndAnswer(edited, state, 1, "e-7"))
-        assertEquals("Reseat it properly", ChatEngine.turns(edited, switched).last().question)
+        assertEquals("Reseat it properly", ChatEngine.turns(switched).last().question)
     }
 }
