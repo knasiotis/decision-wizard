@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -31,10 +32,13 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.knasiotis.decisionwizard.DecisionWizardApplication
-import com.knasiotis.decisionwizard.data.LibraryRepository
-import com.knasiotis.decisionwizard.model.Graph
+import com.knasiotis.decisionwizard.data.LaunchBehaviour
+import com.knasiotis.decisionwizard.ui.chat.ChatViewModel
+import com.knasiotis.decisionwizard.ui.chats.ChatsScreen
+import com.knasiotis.decisionwizard.ui.chats.ChatsViewModel
 import com.knasiotis.decisionwizard.ui.graphs.GraphsScreen
 import com.knasiotis.decisionwizard.ui.graphs.GraphsViewModel
+import kotlinx.coroutines.flow.first
 
 /**
  * Checks the whole hierarchy, not just the leaf, so a nested destination still
@@ -47,8 +51,11 @@ private fun NavDestination?.isOn(route: String): Boolean =
 private object Routes {
     const val CHATS = "chats"
     const val GRAPHS = "graphs"
-    const val CHAT = "chat/{graphId}"
-    fun chat(graphId: String) = "chat/$graphId"
+    const val NEW_CHAT = "chat/new/{graphId}"
+    const val RESUME_CHAT = "chat/session/{sessionId}"
+
+    fun newChat(graphId: String) = "chat/new/$graphId"
+    fun resumeChat(sessionId: String) = "chat/session/$sessionId"
 }
 
 @Composable
@@ -70,6 +77,26 @@ fun DecisionWizardApp(
     LaunchedEffect(pendingImportUri) {
         if (pendingImportUri != null && !route.isOn(Routes.GRAPHS)) {
             navController.navigate(Routes.GRAPHS) { launchSingleTop = true }
+        }
+    }
+
+    // Runs once. A tapped file always wins over the launch preference — the user
+    // asked for that file, not for whatever they were doing last.
+    var launchHandled by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (launchHandled || pendingImportUri != null) {
+            launchHandled = true
+            return@LaunchedEffect
+        }
+        launchHandled = true
+
+        if (app.settings.launchBehaviour.first() == LaunchBehaviour.NEW_CHAT) {
+            // "Start a new chat" means choosing what it runs on.
+            navController.navigate(Routes.GRAPHS) { launchSingleTop = true }
+        } else {
+            app.repository.mostRecentSession()?.let {
+                navController.navigate(Routes.resumeChat(it.sessionId))
+            }
         }
     }
 
@@ -103,9 +130,15 @@ fun DecisionWizardApp(
             modifier = Modifier.padding(insets)
         ) {
             composable(Routes.CHATS) {
-                // Sessions are not persisted yet; this becomes the real list in
-                // step 5 of the v0.2 plan.
-                ChatsPlaceholder()
+                val vm: ChatsViewModel = viewModel(
+                    factory = viewModelFactory {
+                        initializer { ChatsViewModel(app.repository, app.settings) }
+                    }
+                )
+                ChatsScreen(
+                    viewModel = vm,
+                    onOpenChat = { navController.navigate(Routes.resumeChat(it)) }
+                )
             }
 
             composable(Routes.GRAPHS) {
@@ -116,42 +149,71 @@ fun DecisionWizardApp(
                 )
                 GraphsScreen(
                     viewModel = vm,
-                    onOpenGraph = { navController.navigate(Routes.chat(it)) },
+                    onOpenGraph = { navController.navigate(Routes.newChat(it)) },
                     pendingImportUri = pendingImportUri,
                     onPendingImportHandled = onPendingImportHandled
                 )
             }
 
-            composable(Routes.CHAT) { entry ->
+            composable(Routes.NEW_CHAT) { entry ->
                 val graphId = entry.arguments?.getString("graphId")
-                ChatRoute(graphId, app.repository)
+                ChatRoute(app, key = "new:$graphId", sessionId = null, graphId = graphId)
+            }
+
+            composable(Routes.RESUME_CHAT) { entry ->
+                val sessionId = entry.arguments?.getString("sessionId")
+                ChatRoute(app, key = "session:$sessionId", sessionId = sessionId, graphId = null)
             }
         }
     }
 }
 
-/** Loads the graph a chat runs over. Replaced by a session-backed VM in step 5. */
 @Composable
-private fun ChatRoute(graphId: String?, repository: LibraryRepository) {
-    var graph by remember(graphId) { mutableStateOf<Graph?>(null) }
+private fun ChatRoute(
+    app: DecisionWizardApplication,
+    key: String,
+    sessionId: String?,
+    graphId: String?
+) {
+    // Keyed, or navigating between two chats would reuse the first one's ViewModel.
+    val vm: ChatViewModel = viewModel(
+        key = key,
+        factory = viewModelFactory {
+            initializer { ChatViewModel(app.repository, sessionId, graphId) }
+        }
+    )
 
-    LaunchedEffect(graphId) {
-        graph = graphId?.let { repository.load(it) }
+    val ui by vm.state.collectAsStateWithLifecycle()
+    val graph = ui.graph
+
+    when {
+        ui.loading -> Unit
+        graph == null -> MissingGraph()
+        else -> ChatScreen(
+            graph = graph,
+            state = ui.session,
+            onAnswer = vm::answer,
+            onRewindAndAnswer = vm::rewindAndAnswer,
+            onRestart = vm::restart
+        )
     }
-
-    graph?.let { ChatScreen(it) }
 }
 
+/**
+ * A session whose graph has been deleted, or a graph id that no longer resolves.
+ * The cascade should make the first impossible, but a stale back stack entry can
+ * still land here.
+ */
 @Composable
-private fun ChatsPlaceholder() {
+private fun MissingGraph() {
     Column(
         modifier = Modifier.fillMaxSize().padding(32.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("No chats yet", style = MaterialTheme.typography.titleMedium)
+        Text("That graph is gone", style = MaterialTheme.typography.titleMedium)
         Text(
-            "Open a graph to start one.",
+            "It was deleted, so this chat can no longer be shown.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,

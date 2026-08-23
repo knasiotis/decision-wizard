@@ -22,8 +22,6 @@ class LibraryRepository(
 
     fun summaries(): Flow<List<GraphSummary>> = graphs.summaries()
 
-    fun graphCount(): Flow<Int> = graphs.count()
-
     fun allGraphs(): Flow<List<GraphEntity>> = graphs.all()
 
     suspend fun load(graphId: String): Graph? =
@@ -54,7 +52,7 @@ class LibraryRepository(
 
     // --- sessions ---
 
-    fun allSessions(): Flow<List<SessionEntity>> = sessions.all()
+    fun sessionList(): Flow<List<SessionListRow>> = sessions.list()
 
     suspend fun mostRecentSession(): SessionEntity? = sessions.mostRecentlyOpened()
 

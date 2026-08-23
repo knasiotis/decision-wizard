@@ -32,16 +32,41 @@ interface GraphDao {
 
     @Query("DELETE FROM graphs WHERE graphId = :graphId")
     suspend fun delete(graphId: String)
-
-    @Query("SELECT COUNT(*) FROM graphs")
-    fun count(): Flow<Int>
 }
+
+/** One row of the Chats list, joined with its graph so the name is available. */
+data class SessionListRow(
+    val sessionId: String,
+    val graphId: String,
+    val graphName: String,
+    val graphRevision: Int,
+    val sessionRevision: Int,
+    val lastOpenedAt: Long,
+    val stateJson: String
+)
 
 @Dao
 interface SessionDao {
 
-    @Query("SELECT * FROM sessions ORDER BY lastOpenedAt DESC")
-    fun all(): Flow<List<SessionEntity>>
+    /**
+     * An INNER JOIN, so a session whose graph is gone simply never appears.
+     * The cascade should prevent that, but the list should not depend on it.
+     */
+    @Query(
+        """
+        SELECT s.sessionId       AS sessionId,
+               s.graphId         AS graphId,
+               g.name            AS graphName,
+               g.revision        AS graphRevision,
+               s.graphRevision   AS sessionRevision,
+               s.lastOpenedAt    AS lastOpenedAt,
+               s.stateJson       AS stateJson
+        FROM sessions s
+        JOIN graphs g ON g.graphId = s.graphId
+        ORDER BY s.lastOpenedAt DESC
+        """
+    )
+    fun list(): Flow<List<SessionListRow>>
 
     /** Backs the "resume last session" launch preference. */
     @Query("SELECT * FROM sessions ORDER BY lastOpenedAt DESC LIMIT 1")

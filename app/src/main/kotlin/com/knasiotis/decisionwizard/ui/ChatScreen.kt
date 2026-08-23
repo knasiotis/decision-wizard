@@ -25,12 +25,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.Saver
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
@@ -41,21 +36,21 @@ import com.knasiotis.decisionwizard.chat.ChatState
 import com.knasiotis.decisionwizard.chat.ChatTurn
 import com.knasiotis.decisionwizard.model.Graph
 import com.knasiotis.decisionwizard.model.Snippet
-import kotlinx.serialization.json.Json
 
-/** Survives rotation. The session holds no graph reference, so a string is enough. */
-private val ChatStateSaver = Saver<ChatState, String>(
-    save = { Json.encodeToString(ChatState.serializer(), it) },
-    restore = { Json.decodeFromString(ChatState.serializer(), it) }
-)
-
+/**
+ * Stateless: the session lives in ChatViewModel and is persisted to Room on
+ * every answer, which is also what makes it survive rotation.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatScreen(graph: Graph, modifier: Modifier = Modifier) {
-    var state by rememberSaveable(graph.graphId, stateSaver = ChatStateSaver) {
-        mutableStateOf(ChatEngine.start(graph))
-    }
-
+fun ChatScreen(
+    graph: Graph,
+    state: ChatState,
+    onAnswer: (answerId: String) -> Unit,
+    onRewindAndAnswer: (stepIndex: Int, answerId: String) -> Unit,
+    onRestart: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     // Derived from the session every recomposition, never cached — the same rule
     // the canvas layout follows.
     val turns = ChatEngine.turns(graph, state)
@@ -83,25 +78,19 @@ fun ChatScreen(graph: Graph, modifier: Modifier = Modifier) {
                 Turn(
                     turn = turn,
                     onAnswer = { answerId ->
-                        val next = if (turn.isLive) {
-                            ChatEngine.answer(graph, state, answerId)
+                        if (turn.isLive) {
+                            onAnswer(answerId)
                         } else {
                             // Tapping any answer on an earlier question switches
                             // that branch outright rather than only rewinding.
-                            ChatEngine.rewindAndAnswer(graph, state, turn.stepIndex, answerId)
+                            onRewindAndAnswer(turn.stepIndex, answerId)
                         }
-                        if (next != null) state = next
                     }
                 )
             }
 
             if (finished || deadEnd) {
-                item {
-                    SessionEnd(
-                        deadEnd = deadEnd,
-                        onRestart = { state = ChatEngine.start(graph) }
-                    )
-                }
+                item { SessionEnd(deadEnd = deadEnd, onRestart = onRestart) }
             }
         }
     }

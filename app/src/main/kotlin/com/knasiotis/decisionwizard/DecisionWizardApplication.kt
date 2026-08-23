@@ -4,6 +4,7 @@ import android.app.Application
 import com.knasiotis.decisionwizard.data.DecisionWizardDatabase
 import com.knasiotis.decisionwizard.data.FileGateway
 import com.knasiotis.decisionwizard.data.LibraryRepository
+import com.knasiotis.decisionwizard.data.SettingsStore
 
 /**
  * Hand-rolled wiring instead of a DI framework. There are two dependencies and
@@ -16,4 +17,6 @@ class DecisionWizardApplication : Application() {
     val repository by lazy { LibraryRepository(database.graphs(), database.sessions()) }
 
     val files by lazy { FileGateway(contentResolver) }
+
+    val settings by lazy { SettingsStore(this) }
 }
