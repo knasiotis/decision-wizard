@@ -103,6 +103,11 @@ fun SettingsScreen(viewModel: SettingsViewModel, modifier: Modifier = Modifier) 
                     selected = launchBehaviour == LaunchBehaviour.NEW_CHAT,
                     onClick = { viewModel.setLaunchBehaviour(LaunchBehaviour.NEW_CHAT) }
                 )
+                Choice(
+                    label = "Show the chat list",
+                    selected = launchBehaviour == LaunchBehaviour.CHAT_LIST,
+                    onClick = { viewModel.setLaunchBehaviour(LaunchBehaviour.CHAT_LIST) }
+                )
             }
 
             Setting(

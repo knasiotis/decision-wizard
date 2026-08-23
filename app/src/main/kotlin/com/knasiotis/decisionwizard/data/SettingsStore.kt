@@ -14,7 +14,10 @@ enum class LaunchBehaviour {
     RESUME_LAST,
 
     /** Go to the graph list to pick what the new chat runs on. */
-    NEW_CHAT
+    NEW_CHAT,
+
+    /** Land on the chat list and decide from there. */
+    CHAT_LIST
 }
 
 /** How long a chat is kept after it was last opened. Zero means forever. */

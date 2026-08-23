@@ -105,13 +105,18 @@ fun DecisionWizardApp(
         // that is about to be pruned could be the one we resume into.
         app.repository.pruneSessions(app.settings.chatRetentionDays.first())
 
-        if (app.settings.launchBehaviour.first() == LaunchBehaviour.NEW_CHAT) {
+        when (app.settings.launchBehaviour.first()) {
             // "Start a new chat" means choosing what it runs on.
-            navController.navigate(Routes.GRAPHS) { launchSingleTop = true }
-        } else {
-            app.repository.mostRecentSession()?.let {
-                navController.navigate(Routes.resumeChat(it.sessionId))
-            }
+            LaunchBehaviour.NEW_CHAT ->
+                navController.navigate(Routes.GRAPHS) { launchSingleTop = true }
+
+            // Already the start destination, so there is nothing to navigate to.
+            LaunchBehaviour.CHAT_LIST -> Unit
+
+            LaunchBehaviour.RESUME_LAST ->
+                app.repository.mostRecentSession()?.let {
+                    navController.navigate(Routes.resumeChat(it.sessionId))
+                }
         }
     }
 
