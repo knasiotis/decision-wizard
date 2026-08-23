@@ -1,7 +1,6 @@
 package com.knasiotis.decisionwizard.data
 
 import androidx.room.Entity
-import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -28,20 +27,14 @@ data class GraphEntity(
 )
 
 /**
- * A chat session. Stores only the answers taken, not the questions, so it
- * cannot be rendered without its graph — which is why deleting a graph cascades
- * to its sessions.
+ * A chat session. Stores only the answers taken, not the questions.
+ *
+ * Deliberately **no** foreign key to graphs. A chat outlives its graph: when the
+ * graph is deleted the chat becomes a read-only record rather than disappearing.
+ * That is only possible because [graphSnapshot] carries enough to render it.
  */
 @Entity(
     tableName = "sessions",
-    foreignKeys = [
-        ForeignKey(
-            entity = GraphEntity::class,
-            parentColumns = ["graphId"],
-            childColumns = ["graphId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
     indices = [Index("graphId"), Index("lastOpenedAt")]
 )
 data class SessionEntity(
@@ -61,6 +54,12 @@ data class SessionEntity(
      */
     val graphRevision: Int,
     val stateJson: String,
+    /**
+     * The graph as it stood when this chat was last answered. Only used once the
+     * live graph is gone — while it exists the chat follows it, so edits show up
+     * in an open chat rather than being frozen at first answer.
+     */
+    val graphSnapshot: String,
     val startedAt: Long,
     val lastOpenedAt: Long
 )

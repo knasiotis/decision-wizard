@@ -104,14 +104,24 @@ class EditorViewModel(
      * The condition comes from the parent's answer list, never free text:
      * either an existing answer with no target yet, or a new answer added here.
      */
-    fun addChild(parentId: String, answerId: String?, newLabel: String?) {
+    fun addChild(
+        parentId: String,
+        answerId: String?,
+        newLabel: String?,
+        title: String,
+        body: String
+    ) {
         val editor = editor ?: return
         val parent = editor.graph.byId[parentId] ?: return
 
         val childId = newId("n")
+        // Seeded with Yes/No because a question with no answers is an endpoint,
+        // and a freshly added question usually is not meant to be one. Both are
+        // removable, and neither is drawn until it has a child.
         val child = Node(
             id = childId,
-            title = "New question",
+            title = title.trim().ifBlank { "New question" },
+            body = body.trim(),
             answers = listOf(Answer(newId("e"), "Yes"), Answer(newId("e"), "No"))
         )
 
@@ -168,16 +178,6 @@ class EditorViewModel(
         val editor = editor ?: return
         val node = editor.graph.byId[nodeId] ?: return
         editor.stageDraft(editor.graph.replaceNode(node.copy(title = title, body = body)))
-        publish(dirty = true)
-    }
-
-    fun stageAnswerLabel(nodeId: String, answerId: String, label: String) {
-        val editor = editor ?: return
-        val node = editor.graph.byId[nodeId] ?: return
-        val updated = node.copy(
-            answers = node.answers.map { if (it.id == answerId) it.copy(label = label) else it }
-        )
-        editor.stageDraft(editor.graph.replaceNode(updated))
         publish(dirty = true)
     }
 

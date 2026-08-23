@@ -243,6 +243,7 @@ private fun ChatRoute(
             graph = graph,
             state = ui.session,
             title = ui.title,
+            readOnly = ui.readOnly,
             onAnswer = vm::answer,
             onRewindAndAnswer = vm::rewindAndAnswer,
             onRename = vm::rename,

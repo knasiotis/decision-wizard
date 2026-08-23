@@ -43,8 +43,10 @@ data class SessionListRow(
     val sessionId: String,
     val graphId: String,
     val title: String,
-    val graphName: String,
-    val graphRevision: Int,
+    /** Null once the graph has been deleted. */
+    val graphName: String?,
+    /** Null once the graph has been deleted. */
+    val graphRevision: Int?,
     val sessionRevision: Int,
     val lastOpenedAt: Long,
     val stateJson: String
@@ -54,8 +56,8 @@ data class SessionListRow(
 interface SessionDao {
 
     /**
-     * An INNER JOIN, so a session whose graph is gone simply never appears.
-     * The cascade should prevent that, but the list should not depend on it.
+     * A LEFT JOIN: a chat whose graph has been deleted still belongs in the
+     * list, shown as read-only, rather than vanishing with it.
      */
     @Query(
         """
@@ -68,7 +70,7 @@ interface SessionDao {
                s.lastOpenedAt    AS lastOpenedAt,
                s.stateJson       AS stateJson
         FROM sessions s
-        JOIN graphs g ON g.graphId = s.graphId
+        LEFT JOIN graphs g ON g.graphId = s.graphId
         ORDER BY s.lastOpenedAt DESC
         """
     )

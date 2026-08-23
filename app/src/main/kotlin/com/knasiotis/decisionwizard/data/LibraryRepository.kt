@@ -17,7 +17,9 @@ data class LoadedSession(
     val graph: Graph,
     val state: ChatState,
     val title: String,
-    val startedAt: Long
+    val startedAt: Long,
+    /** The graph is gone; this was rebuilt from the snapshot and cannot be answered. */
+    val readOnly: Boolean
 )
 
 class LibraryRepository(
@@ -53,7 +55,10 @@ class LibraryRepository(
         )
     }
 
-    /** Sessions go with it, by foreign key. Check [sessionCount] first to say so. */
+    /**
+     * Chats are left alone. They keep a snapshot, so they survive as read-only
+     * records instead of disappearing with the graph.
+     */
     suspend fun deleteGraph(graphId: String) = graphs.delete(graphId)
 
     suspend fun sessionCount(graphId: String): Int = sessions.countForGraph(graphId)
@@ -64,14 +69,22 @@ class LibraryRepository(
 
     suspend fun mostRecentSession(): SessionEntity? = sessions.mostRecentlyOpened()
 
+    /**
+     * Prefers the live graph so edits show up in an open chat. Falls back to the
+     * snapshot only once the graph is gone, and says so, because a chat that
+     * cannot be continued must not look like one that can.
+     */
     suspend fun loadSession(sessionId: String): LoadedSession? {
         val row = sessions.byId(sessionId) ?: return null
-        val graph = load(row.graphId) ?: return null
+        val live = load(row.graphId)
+        val graph = live ?: runCatching { parseGraph(row.graphSnapshot) }.getOrNull() ?: return null
+
         return LoadedSession(
             graph = graph,
             state = Json.decodeFromString(ChatState.serializer(), row.stateJson),
             title = row.title,
-            startedAt = row.startedAt
+            startedAt = row.startedAt,
+            readOnly = live == null
         )
     }
 
@@ -92,6 +105,9 @@ class LibraryRepository(
                 title = title,
                 graphRevision = graph.revision,
                 stateJson = Json.encodeToString(ChatState.serializer(), state),
+                // Written on every save so a deleted graph leaves a readable
+                // record rather than an unrenderable row.
+                graphSnapshot = graph.toJson(),
                 startedAt = startedAt,
                 lastOpenedAt = now()
             )

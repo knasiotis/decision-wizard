@@ -53,6 +53,7 @@ fun ChatScreen(
     graph: Graph,
     state: ChatState,
     title: String,
+    readOnly: Boolean,
     onAnswer: (answerId: String) -> Unit,
     onRewindAndAnswer: (stepIndex: Int, answerId: String) -> Unit,
     onRename: (String) -> Unit,
@@ -76,12 +77,31 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    // Tapping the title renames the chat, using the same dialog
-                    // that named it in the first place.
-                    Text(
-                        text = title,
-                        modifier = Modifier.clickable { renaming = true }
-                    )
+                    Column {
+                        // Tapping the title renames the chat, using the same
+                        // dialog that named it in the first place.
+                        Text(
+                            text = title,
+                            modifier = Modifier.clickable(enabled = !readOnly) {
+                                renaming = true
+                            }
+                        )
+                        // Which flow this chat runs on. A chat named "Tuesday
+                        // callout" does not say, and that is what you need.
+                        Text(
+                            text = if (readOnly) {
+                                "${graph.name} — deleted"
+                            } else {
+                                graph.name
+                            },
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (readOnly) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    }
                 }
             )
         }
@@ -94,9 +114,21 @@ fun ChatScreen(
         ) {
             // stepIndex is unique per answered turn and -1 for the live one, so
             // this stays stable even when a cycle revisits the same node.
+            if (readOnly) {
+                item {
+                    Text(
+                        "This graph was deleted, so the chat is kept as a record " +
+                            "and cannot be continued.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+
             items(turns, key = { "${it.stepIndex}:${it.node.id}" }) { turn ->
                 Turn(
                     turn = turn,
+                    readOnly = readOnly,
                     onAnswer = { answerId ->
                         if (turn.isLive) {
                             onAnswer(answerId)
@@ -109,7 +141,7 @@ fun ChatScreen(
                 )
             }
 
-            if (finished || deadEnd) {
+            if (!readOnly && (finished || deadEnd)) {
                 item { SessionEnd(deadEnd = deadEnd, onRestart = onRestart) }
             }
         }
@@ -132,7 +164,7 @@ fun ChatScreen(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Turn(turn: ChatTurn, onAnswer: (String) -> Unit) {
+private fun Turn(turn: ChatTurn, readOnly: Boolean, onAnswer: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Surface(
             color = MaterialTheme.colorScheme.surfaceVariant,
@@ -169,6 +201,9 @@ private fun Turn(turn: ChatTurn, onAnswer: (String) -> Unit) {
                     FilterChip(
                         selected = answer.id == turn.chosenAnswerId,
                         onClick = { onAnswer(answer.id) },
+                        // A record cannot be re-answered, so the chips are inert
+                        // rather than misleadingly tappable.
+                        enabled = !readOnly,
                         label = { Text(answer.label) }
                     )
                 }

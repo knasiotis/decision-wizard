@@ -16,11 +16,14 @@ import kotlinx.serialization.json.Json
 data class ChatSummary(
     val sessionId: String,
     val title: String,
+    /** Always shown: a chat's title need not say which flow it runs on. */
     val graphName: String,
     val answerCount: Int,
     val lastOpenedAt: Long,
     /** The graph has moved on since this session was answered. */
-    val graphChanged: Boolean
+    val graphChanged: Boolean,
+    /** The graph was deleted; the chat is a record now and cannot be continued. */
+    val readOnly: Boolean
 )
 
 class ChatsViewModel(
@@ -49,11 +52,13 @@ class ChatsViewModel(
         return ChatSummary(
             sessionId = sessionId,
             // Sessions from before titles existed fall back to the graph name.
-            title = title.ifBlank { graphName },
-            graphName = graphName,
+            title = title.ifBlank { graphName ?: "Chat" },
+            graphName = graphName ?: "Deleted graph",
             answerCount = answers,
             lastOpenedAt = lastOpenedAt,
-            graphChanged = graphRevision != sessionRevision
+            // Only meaningful while the graph still exists.
+            graphChanged = graphName != null && graphRevision != sessionRevision,
+            readOnly = graphName == null
         )
     }
 }

@@ -557,7 +557,7 @@ Shipped as test builds `v0.2.1` … `v0.2.4` on the `v0.2` branch.
 | Bundled example graph | **Dropped.** A fresh install starts empty; the empty state carries first-run. `samples/` lives on as the `:graphcore` test fixture. |
 | Chat sessions | Persisted in Room. Written only once something has been answered — saving on open would fill the list with empty sessions, and an unanswered session has nothing to resume. |
 | App launch | DataStore preference: resume last-opened session, or go to Graphs to start a new chat. A tapped `.dwiz` always wins over it. |
-| Deleting a **graph** | Cascades to its sessions via a real foreign key. The dialog states the count. |
+| Deleting a **graph** | **Chats survive as read-only records.** Reversed in v0.3: the cascade and the foreign key are gone, and each session carries a `graphSnapshot` so it can still be rendered. A chat is history; deleting the flow it ran on should not erase what was answered. |
 | Deleting a **chat** | Deletes only the chat, and says so. A chat card is named after its graph, so it carries a "Chat" label and its button reads "Delete chat". |
 | Starting a chat | The **New chat** button on Chats, with a searchable graph picker. Graph cards are deliberately not clickable. |
 | Node list / node detail | Cut. They exist to support the v0.3 editor. |

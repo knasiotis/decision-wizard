@@ -318,13 +318,14 @@ private fun DeleteGraphDialog(
         title = { Text("Delete \"$name\"?") },
         text = {
             Text(
-                // Sessions store only the answers taken, so they cannot be read
-                // without their graph. Say so rather than deleting quietly.
+                // Chats are kept: each carries a snapshot, so it survives as a
+                // read-only record rather than disappearing with the graph.
                 when (sessionCount) {
                     0 -> "This cannot be undone."
-                    1 -> "1 chat used this graph and will be deleted too. This cannot be undone."
-                    else -> "$sessionCount chats used this graph and will be deleted too. " +
-                        "This cannot be undone."
+                    1 -> "1 chat used this graph. It will be kept as a read-only " +
+                        "record. Deleting the graph cannot be undone."
+                    else -> "$sessionCount chats used this graph. They will be kept as " +
+                        "read-only records. Deleting the graph cannot be undone."
                 }
             )
         },

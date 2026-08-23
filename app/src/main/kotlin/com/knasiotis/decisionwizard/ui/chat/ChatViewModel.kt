@@ -16,6 +16,8 @@ data class ChatUiState(
     val graph: Graph? = null,
     val session: ChatState = ChatState(),
     val title: String = "",
+    /** The graph was deleted; this chat is a record and cannot be answered. */
+    val readOnly: Boolean = false,
     val loading: Boolean = true,
     val missing: Boolean = false
 )
@@ -52,7 +54,14 @@ class ChatViewModel(
             // Sessions predating titles have none; fall back to the graph name
             // rather than showing an empty top bar.
             val title = resumed.title.ifBlank { resumed.graph.name }
-            _state.value = ChatUiState(resumed.graph, resumed.state, title, loading = false)
+            _state.value = ChatUiState(
+                graph = resumed.graph,
+                session = resumed.state,
+                title = title,
+                readOnly = resumed.readOnly,
+                loading = false
+            )
+            if (resumed.readOnly) return
             // Resuming counts as opening, so it moves to the top of the list.
             persist(resumed.graph, resumed.state, title)
             return

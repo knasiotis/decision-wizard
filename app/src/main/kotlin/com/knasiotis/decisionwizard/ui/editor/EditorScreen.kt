@@ -214,12 +214,11 @@ private fun Canvas(
                     from = from, to = to,
                     text = measurer.measure(edge.label, labelStyle)
                 )
-                // A dangling answer gets a stub going nowhere, so a branch that
-                // has not been built out is visible rather than absent.
-                EdgeKind.DANGLING -> PaintedEdge(
-                    from = from, to = null,
-                    text = measurer.measure(edge.label, labelStyle)
-                )
+                // Nothing is drawn for an answer with no child yet. Painting a
+                // stub would show "Yes" and "No" on a brand-new question before
+                // either branch exists, which reads as structure that is not
+                // there.
+                EdgeKind.DANGLING -> null
                 EdgeKind.STUB -> null // rendered as chips on both bubbles
             }
         }

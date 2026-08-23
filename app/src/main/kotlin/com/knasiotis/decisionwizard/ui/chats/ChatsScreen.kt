@@ -238,20 +238,25 @@ private fun ChatCard(chat: ChatSummary, onOpen: () -> Unit, onDelete: () -> Unit
                 color = MaterialTheme.colorScheme.primary
             )
             Text(chat.title, style = MaterialTheme.typography.titleMedium)
-            if (chat.title != chat.graphName) {
-                // Only when it adds something — repeating the graph name under
-                // an identical title is noise.
-                Text(
-                    chat.graphName,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            // Always shown. A chat named "Tuesday callout" says nothing about
+            // which flow it runs on, and that is the thing you need to know.
+            Text(
+                chat.graphName,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Text(
                 "${chat.answerCount} answered · ${relativeTime(chat.lastOpenedAt)}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            if (chat.readOnly) {
+                Text(
+                    "Read-only — the graph was deleted",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
             if (chat.graphChanged) {
                 // The chat still opens — turns() skips nodes that no longer
                 // exist — but say so rather than letting steps quietly vanish.
@@ -263,8 +268,17 @@ private fun ChatCard(chat: ChatSummary, onOpen: () -> Unit, onDelete: () -> Unit
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                if (chat.readOnly) {
+                    Text(
+                        "Read-only",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                }
                 TextButton(onClick = onDelete) { Text("Delete chat") }
             }
         }

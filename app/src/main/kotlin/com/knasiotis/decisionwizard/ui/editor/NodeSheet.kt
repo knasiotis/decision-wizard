@@ -67,9 +67,6 @@ fun NodeSheet(
         NodeEditDialog(
             node = node,
             onChange = { title, body -> viewModel.stageNodeText(node.id, title, body) },
-            onAnswerChange = { answerId, label ->
-                viewModel.stageAnswerLabel(node.id, answerId, label)
-            },
             onClose = {
                 // One undo step for the whole typing session, not one per keystroke.
                 viewModel.commitEdits(node.id)
@@ -83,8 +80,8 @@ fun NodeSheet(
             graph = graph,
             node = node,
             intent = intent,
-            onAddChild = { answerId, label ->
-                viewModel.addChild(node.id, answerId, label)
+            onAddChild = { answerId, label, title, details ->
+                viewModel.addChild(node.id, answerId, label, title, details)
                 linking = null
                 onDismiss()
             },
@@ -146,7 +143,6 @@ private fun inboundSummary(graph: Graph, nodeId: String): String {
 private fun NodeEditDialog(
     node: Node,
     onChange: (title: String, body: String) -> Unit,
-    onAnswerChange: (answerId: String, label: String) -> Unit,
     onClose: () -> Unit
 ) {
     var title by remember(node.id) { mutableStateOf(node.title) }
@@ -175,25 +171,9 @@ private fun NodeEditDialog(
                         body = it
                         onChange(title, it)
                     },
-                    label = { Text("Detail") },
+                    label = { Text("Details") },
                     modifier = Modifier.fillMaxWidth()
                 )
-
-                if (node.answers.isNotEmpty()) {
-                    Text("Answers", style = MaterialTheme.typography.labelMedium)
-                    node.answers.forEach { answer ->
-                        var label by remember(answer.id) { mutableStateOf(answer.label) }
-                        OutlinedTextField(
-                            value = label,
-                            onValueChange = {
-                                label = it
-                                onAnswerChange(answer.id, it)
-                            },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
             }
         },
         confirmButton = { TextButton(onClick = onClose) { Text("Done") } }
@@ -205,7 +185,7 @@ private fun LinkDialog(
     graph: Graph,
     node: Node,
     intent: LinkIntent,
-    onAddChild: (answerId: String?, newLabel: String?) -> Unit,
+    onAddChild: (answerId: String?, newLabel: String?, title: String, details: String) -> Unit,
     onConnect: (answerId: String?, newLabel: String?, targetId: String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -215,16 +195,26 @@ private fun LinkDialog(
     var chosenAnswer by remember(node.id) { mutableStateOf<String?>(null) }
     var newLabel by remember(node.id) { mutableStateOf("") }
     var pickingTarget by remember(node.id) { mutableStateOf(false) }
+    var composing by remember(node.id) { mutableStateOf(false) }
     var query by remember(node.id) { mutableStateOf("") }
 
     fun proceed(answerId: String?, label: String?) {
-        if (intent == LinkIntent.AddChild) {
-            onAddChild(answerId, label)
-        } else {
-            chosenAnswer = answerId
-            newLabel = label.orEmpty()
-            pickingTarget = true
-        }
+        chosenAnswer = answerId
+        if (label != null) newLabel = label
+        if (intent == LinkIntent.AddChild) composing = true else pickingTarget = true
+    }
+
+    if (composing) {
+        // The new question is configured before it exists. Nothing is added to
+        // the graph until this is confirmed, so a cancelled add leaves no
+        // orphan node and no half-drawn branch behind.
+        NewChildDialog(
+            onConfirm = { title, details ->
+                onAddChild(chosenAnswer, newLabel.ifBlank { null }, title, details)
+            },
+            onDismiss = onDismiss
+        )
+        return
     }
 
     if (pickingTarget) {
@@ -305,6 +295,47 @@ private fun LinkDialog(
     )
 }
 
+/** Title and details for a question that does not exist yet. */
+@Composable
+private fun NewChildDialog(
+    onConfirm: (title: String, details: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var details by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("New question") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Question") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = details,
+                    onValueChange = { details = it },
+                    label = { Text("Details") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(title, details) },
+                enabled = title.isNotBlank()
+            ) { Text("Add") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
 @Composable
 private fun DeleteDialog(
     graph: Graph,
@@ -314,21 +345,34 @@ private fun DeleteDialog(
     onDismiss: () -> Unit
 ) {
     var reparenting by remember(node.id) { mutableStateOf(false) }
+    var query by remember(node.id) { mutableStateOf("") }
 
     if (reparenting) {
         AlertDialog(
             onDismissRequest = onDismiss,
             title = { Text("Move children to…") },
             text = {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    graph.nodes.filter { it.id != node.id }.forEach { target ->
-                        Text(
-                            target.title,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onDelete(DeleteMode.REPARENT, target.id) }
-                                .padding(vertical = 12.dp)
-                        )
+                Column {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        label = { Text("Search") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        graph.nodes
+                            .filter { it.id != node.id }
+                            .filter { query.isBlank() || it.title.contains(query.trim(), true) }
+                            .forEach { target ->
+                                Text(
+                                    target.title,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onDelete(DeleteMode.REPARENT, target.id) }
+                                        .padding(vertical = 12.dp)
+                                )
+                            }
                     }
                 }
             },
