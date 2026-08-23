@@ -41,6 +41,7 @@ Argued through and settled. Do not revisit without being asked.
 | Long edges | Not drawn. Rendered as reciprocal stub chips. |
 | Graph shape | Cycles, reconvergence and dangling branches are all legal. |
 | Undo | Snapshot-based, in memory only, not persisted across restarts. |
+| Export format | `.dwiz` — plain JSON in v0.2, zip from v0.4, told apart by magic bytes |
 | Distribution | GitHub Releases, signed APK, consumed via Obtainium |
 
 ### Constraints that are easy to violate by accident
@@ -201,20 +202,42 @@ Bottom navigation: Chats / Graphs.
 
 ## Import / export
 
-Export is a **zip** with a custom extension so Android can associate it:
+The extension is **`.dwiz`**. It is custom rather than `.json` for one reason:
+tap-to-open. Android cannot route a `.json` file to a specific app because too
+many apps claim that type. The extension is about association, not content.
+
+**v0.2 writes plain JSON inside `.dwiz`. No zip.** There are no attachments until
+v0.4, so a zip would be wrapping a single file for two milestones while breaking
+the hand-editable constraint — you cannot open a zip in a text editor, paste it
+into a chat, or diff it.
+
+**v0.4 switches the same extension to a zip**, once attachments exist:
 
 ```
-internet-down.tgraph
+internet-down.dwiz
 ├── graph.json
 └── assets/
     └── router-leds.jpg
 ```
 
+The importer distinguishes them by **magic bytes**: a zip always starts with
+`PK\x03\x04`, anything else is parsed as bare JSON. One extension covers both
+forever, every v0.2 file keeps importing, and there is no migration to write.
+**Do not introduce a second extension for the zip.**
+
 Attachments reference relative paths. Images are copied into app storage on
 import, never base64-inlined into the JSON.
 
-Use SAF (`ACTION_CREATE_DOCUMENT` / `ACTION_OPEN_DOCUMENT`). Register an intent
-filter so tapping a `.tgraph` file opens the app.
+Use SAF (`ACTION_CREATE_DOCUMENT` / `ACTION_OPEN_DOCUMENT`). The intent filter
+needs the pattern repeated, because Android's `pathPattern` matcher stops
+matching once the filename contains extra dots — and a graph called
+`Router v1.2` is enough to trigger it:
+
+```xml
+<data android:pathPattern=".*\\.dwiz" />
+<data android:pathPattern=".*\\..*\\.dwiz" />
+<data android:pathPattern=".*\\..*\\..*\\.dwiz" />
+```
 
 ---
 
@@ -439,10 +462,4 @@ Not done, in the order agreed:
 
 ### Open questions
 
-**Blocks v0.2: choose the export extension.** `.tgraph` dates from the old
-project name; the app is now Decision Wizard. v0.2 is the milestone that ships
-import/export, so it is the last moment this is free — once a release registers
-an intent filter and `.tgraph` files exist on disk, renaming strands those files
-and forces the importer to accept both extensions forever. Recommendation is
-`.dwiz`. **Settle this before writing the intent filter or the export flow,** not
-after.
+None currently.
