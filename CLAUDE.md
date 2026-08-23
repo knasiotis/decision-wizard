@@ -50,6 +50,11 @@ Argued through and settled. Do not revisit without being asked.
   portable between two people's installs.
 - **Do not add a node `type` or `isTerminal` field.** A node with an empty
   `answers` list *is* an endpoint.
+- **An answer with no target is not a warning.** It is a documented legal state
+  and the normal condition of every question the moment it is created. Reporting
+  it made a brand-new node look broken and buried the warnings that mean
+  something. Warnings left are: orphaned nodes, targets that no longer exist, a
+  missing root, and attachments with nothing attached.
 - **Do not block the user from building a weird graph.** Cycles, orphans and
   dangling answers produce warnings on the canvas, never dialogs or refusals.
   Cycle detection exists solely so the depth pass terminates.

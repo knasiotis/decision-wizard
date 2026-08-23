@@ -192,8 +192,8 @@ fun EditorScreen(
 
     if (renamingGraph) {
         NameDialog(
-            dialogTitle = "Rename this graph",
-            fieldLabel = "Name",
+            dialogTitle = "Rename",
+            fieldLabel = "Graph name",
             initial = ui.graph?.name.orEmpty(),
             confirmLabel = "Rename",
             onConfirm = {

@@ -201,12 +201,12 @@ private fun NewGraphDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Name the graph") },
+        title = { Text("New graph") },
         text = {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("Name") },
+                label = { Text("Graph name") },
                 singleLine = true
             )
         },

@@ -71,15 +71,18 @@ object GraphValidator {
         else -> emptyList()
     }
 
+    /**
+     * An answer with no target is **not** reported. `targetNodeId: null` is a
+     * documented legal state — the branch exists and has not been built out yet
+     * — and it is the normal condition of every question the moment it is
+     * created. Warning about it made a brand-new node look broken and buried the
+     * warnings that mean something.
+     */
     private fun edgeIssues(graph: Graph): List<Issue> =
         graph.nodes.flatMap { node ->
             node.answers.mapNotNull { answer ->
                 when {
-                    answer.targetNodeId == null -> Issue(
-                        Severity.WARNING, "dangling_answer",
-                        "\"${answer.label}\" on \"${node.title}\" has no next step.",
-                        nodeId = node.id, answerId = answer.id
-                    )
+                    answer.targetNodeId == null -> null
                     graph.byId[answer.targetNodeId] == null -> Issue(
                         Severity.WARNING, "broken_target",
                         "\"${answer.label}\" points at a node that no longer exists.",

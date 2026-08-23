@@ -166,8 +166,8 @@ fun ChatScreen(
 
     if (renaming) {
         NameDialog(
-            dialogTitle = "Rename this chat",
-            fieldLabel = "Title",
+            dialogTitle = "Rename",
+            fieldLabel = "Chat name",
             initial = title,
             confirmLabel = "Rename",
             onConfirm = {

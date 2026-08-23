@@ -107,8 +107,8 @@ fun ChatsScreen(
 
     naming?.let { graph ->
         NameDialog(
-            dialogTitle = "Name this chat",
-            fieldLabel = "Title",
+            dialogTitle = "New chat",
+            fieldLabel = "Chat name",
             initial = graph.name,
             confirmLabel = "Start",
             onConfirm = { title ->

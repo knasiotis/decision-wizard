@@ -75,14 +75,27 @@ class ImportPlannerTest {
     /** Warnings inform, they never block — the file still imports. */
     @Test
     fun `warnings are carried through rather than blocking`() {
-        val dangling = Fixtures.graph(
+        val withOrphan = Fixtures.graph(
             "a",
             Fixtures.node("a", Fixtures.answer("e1", "Yes", null)),
             Node(id = "orphan", title = "Orphan")
         )
-        val add = assertIs<ImportPlan.AddNew>(ImportPlanner.plan(dangling, emptyList()))
-        assertTrue(add.warnings.any { it.code == "dangling_answer" })
+        val add = assertIs<ImportPlan.AddNew>(ImportPlanner.plan(withOrphan, emptyList()))
         assertTrue(add.warnings.any { it.code == "orphan" })
+    }
+
+    /**
+     * An unbuilt branch is the normal state of a new question, not a fault, so
+     * it must not be reported as one.
+     */
+    @Test
+    fun `an answer with no target is not a warning`() {
+        val unfinished = Fixtures.graph(
+            "a",
+            Fixtures.node("a", Fixtures.answer("e1", "Yes", null), Fixtures.answer("e2", "No", null))
+        )
+        val add = assertIs<ImportPlan.AddNew>(ImportPlanner.plan(unfinished, emptyList()))
+        assertTrue(add.warnings.isEmpty(), "unexpected warnings: ${add.warnings.map { it.code }}")
     }
 
     @Test
