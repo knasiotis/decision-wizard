@@ -436,6 +436,25 @@ the cycle is broken *somewhere* and that stubs are reciprocal.
 and still uses `kotlin-jvm` normally. The Compose compiler plugin applies on top
 of AGP's built-in Kotlin without issue.
 
+**Never edit code with blind string replacement.** A `sed`/`str.replace` whose
+pattern no longer matches does nothing and reports success. This shipped a build
+where the "New chat" button did not exist: the pattern had been broken by an
+earlier reformat, so the picker dialog and its state compiled while nothing could
+open them. Use an edit tool that errors when the pattern is absent.
+
+**Verify the user-visible strings in the built APK, not just that a class
+exists.** Grepping the dex for `GraphPickerDialog` "confirmed" that same broken
+build — the dialog was present and unreachable. The check that would have caught
+it is whether `"New chat"` appears:
+
+```bash
+unzip -qo app/build/outputs/apk/debug/app-debug.apk 'classes*.dex'
+strings -a classes*.dex | grep -cF "New chat"
+```
+
+**`BUILD SUCCESSFUL in 1s` after a real change deserves suspicion.** Check the
+APK's mtime before believing an incremental build did anything.
+
 **KSP is versioned independently of Kotlin** since KSP 2.3.0. Older guidance says
 to match `<kotlin>-<ksp>` (e.g. `2.2.21-2.0.5`); that scheme is gone, and there is
 no `2.4.10-*` build to hunt for. KSP and the Room Gradle plugin both apply
@@ -507,86 +526,87 @@ rehearsal instead of by burning a version number.
   Authoring moves onto the device.
 - **v0.4.0** — attachments and transcript export.
 
-## v0.2 plan
+## v0.2 — done
 
-The first tagged release. Someone can hold several flows, import one you sent,
-chat over any of them, and resume where they left off. Authoring stays
-hand-edited JSON until v0.3 — which is why the format must stay hand-editable.
+Room library, `.dwiz` import/export, tap-to-open, persistent chat sessions,
+launch preference, a Settings destination, zip backups and chat retention.
+Shipped as test builds `v0.2.1` … `v0.2.4` on the `v0.2` branch.
 
-v0.1 has effectively no architecture: one activity, one composable, state in
-`rememberSaveable`. v0.2 adds persistence, navigation, background work and a
-settings store. **That jump is the real risk, not the features.**
-
-### Decisions
+### Decisions made during v0.2
 
 | Question | Decision |
 |---|---|
-| Bundled example graph | **Dropped.** A fresh install has an empty library; the empty state carries first-run. Keep `samples/` as the `:graphcore` test fixture — only remove it from `:app` assets. |
-| Chat sessions persisted? | **Yes**, in Room. |
-| App launch behaviour | User preference: **resume last-opened session**, or **start a new chat**. Falls back to the Chats list when there is nothing to resume. Stored in DataStore, set from an overflow menu on Chats. |
-| Deleting a graph | **Cascades to its sessions.** The confirmation states the count ("3 chats will also be deleted"). A session stores only the answer path, so it cannot render without its graph. |
-| Node list / node detail screens | **Cut from v0.2.** Surface validation on the graph itself instead. Those screens exist to support the v0.3 editor. |
+| Bundled example graph | **Dropped.** A fresh install starts empty; the empty state carries first-run. `samples/` lives on as the `:graphcore` test fixture. |
+| Chat sessions | Persisted in Room. Written only once something has been answered — saving on open would fill the list with empty sessions, and an unanswered session has nothing to resume. |
+| App launch | DataStore preference: resume last-opened session, or go to Graphs to start a new chat. A tapped `.dwiz` always wins over it. |
+| Deleting a **graph** | Cascades to its sessions via a real foreign key. The dialog states the count. |
+| Deleting a **chat** | Deletes only the chat, and says so. A chat card is named after its graph, so it carries a "Chat" label and its button reads "Delete chat". |
+| Starting a chat | The **New chat** button on Chats, with a searchable graph picker. Graph cards are deliberately not clickable. |
+| Node list / node detail | Cut. They exist to support the v0.3 editor. |
+| Chat retention | Never (default), 7, 30, or a custom 1–3650 days. Measured from *last opened*, not started. Keeping is the default — silently deleting history never is. |
 
-### Schema
-
-Graph body stays a JSON blob per the locked decision, with metadata
-denormalised into columns so the library list renders without parsing every
-graph.
+### Schema (version 1)
 
 ```
-graphs    graphId PK, name, description, revision, updatedAt, rootNodeId, body TEXT
+graphs    graphId PK, name, description, revision, updatedAt, rootNodeId,
+          body TEXT, savedAt
 sessions  sessionId PK, graphId FK -> CASCADE, graphRevision, stateJson,
           startedAt, lastOpenedAt
 ```
 
-`sessions.graphRevision` records what the session ran against. When a graph is
-later updated, `ChatEngine.turns()` already skips nodes that no longer exist, so
-old sessions degrade instead of crashing. Export the Room schema from the first
-version so later migrations have a baseline.
+`sessions.graphRevision` records what the session ran against. When the graph is
+later updated, `ChatEngine.turns()` skips nodes that no longer exist, so an old
+session degrades rather than crashing — and the Chats card says the graph has
+changed.
 
-### Split
+---
 
-- **`:graphcore`** — `.dwiz` read/write, the import decision (same `graphId` +
-  higher `revision` → update, else duplicate), duplication that mints fresh ids
-  so an import cannot collide, FATAL validation gating. All unit-tested.
-- **`:app`** — Room, DataStore, SAF, navigation, screens.
+## v0.3 plan
 
-### Order
+The canvas editor: authoring moves onto the device. Plus one thing carried over
+from v0.2 feedback.
 
-1. `:graphcore` — dwiz I/O, import decisions, duplication, tests.
-2. Room — schema, DAOs, repository.
-3. Navigation shell + Graphs screen + import. Drop the bundled example here.
-4. Export + `.dwiz` intent filter.
-5. Session persistence + Chats screen + launch preference.
-6. Empty states, validation surfacing, device test, tag `v0.2.0`.
+### Scope
+
+1. **Chat titles.** Name a chat before it starts, so the Chats list is not a
+   column of identical graph names. Adds `sessions.title` — schema version 2.
+2. **The canvas** — `LayoutEngine` rendered as real composables in a custom
+   `Layout`, pan and zoom, stub chips, validation badges.
+3. **Node editing** — edit contents, add child, connect to existing.
+4. **Delete ops UI** over the existing `DeleteOps`.
+5. **Undo/redo** over the existing `UndoStack`.
+
+Most of the hard logic already exists in `:graphcore` and is tested. v0.3 is
+mostly the UI over it — plus the one thing below that is a real bug waiting.
+
+### Known trap
+
+**`GraphEditor.graph` is a plain `var`.** It will not trigger recomposition. It
+compiles fine and simply never redraws, so it looks like a broken editor rather
+than a state bug. Wire it to `mutableStateOf` before building anything on it.
+
+---
 
 ## Current state
 
-**v0.1 is done and verified on a real device.** Gradle scaffold, `:graphcore`
-green at 39 tests, four bugs found and fixed (see git history), chat, traversal,
-rewind, snippet copy, text selection, the bundled sample graph, and both CI
-workflows passing. Manually confirmed on hardware: launch, clipboard copy,
-walking the cycle, rotation, rewind, chip wrapping, endpoints, text selection,
-dynamic colour, and that the app requests no permissions.
+**v0.1 and v0.2 are both done and device-tested.** `:graphcore` is green at 70
+tests. Four signed test builds published from the `v0.2` branch.
 
-Not done, in the order agreed:
+`main` is still at v0.1 — the v0.2 work lives on the `v0.2` branch and its PR is
+**not yet opened or merged**, so the tags are on the branch rather than on
+`main`.
 
-1. **v0.2.0** — Room, the graph library screen, and `.dwiz` import/export. The
-   first tagged release, and the next real work.
-2. **Consider raising `targetSdk` to 37** as part of v0.2's device testing, not
-   before. It is held at 36 only out of caution; nothing needs it, there is no
-   Play Store deadline behind it since distribution is Obtainium, and bumping it
-   opts into API 37 runtime behaviour that would need re-checking on hardware.
-   Cheaper to fold that into a test pass you are doing anyway.
-4. **Wire `GraphEditor.graph` to `mutableStateOf`** so recomposition fires. It is
-   currently a plain `var` and will not trigger a redraw. Needed for v0.3, but
-   easy to forget because it compiles fine.
-5. Rewrite `README.md` from scratch.
+Outstanding:
 
-Note for whoever picks up the first release: a signed APK **cannot be installed
-over the debug build** — different signing keys, so Android refuses the upgrade.
-Uninstall the debug build first. This applies to the `workflow_dispatch` signing
-rehearsal too, not just to `v0.2.0`.
+1. **Open and merge the v0.2 PR**, then tag `v0.2.0` on `main`.
+2. **v0.3** — see the plan above.
+3. **Consider raising `targetSdk` to 37** during a device test pass. Nothing
+   needs it; there is no Play Store deadline since distribution is Obtainium.
+4. Rewrite `README.md` from scratch.
+
+Note: a signed APK **cannot be installed over a debug build** — different keys,
+so Android refuses the upgrade. Uninstall the debug build first. Release-to-
+release upgrades are clean.
 
 ### Open questions
 
