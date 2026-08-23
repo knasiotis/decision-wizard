@@ -51,6 +51,13 @@ fun ChatsScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(title = { Text("Chats") })
+        },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = { picking = true },
+                text = { Text("New chat") },
+                icon = {}
+            )
         }
     ) { insets ->
         when {

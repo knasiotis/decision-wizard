@@ -9,11 +9,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -24,9 +27,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.knasiotis.decisionwizard.data.ChatRetention
@@ -48,6 +54,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, modifier: Modifier = Modifier) 
     val message by viewModel.message.collectAsStateWithLifecycle()
 
     val snackbars = remember { SnackbarHostState() }
+    var customOpen by remember { mutableStateOf(false) }
 
     val backupSaver = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip")
@@ -102,13 +109,24 @@ fun SettingsScreen(viewModel: SettingsViewModel, modifier: Modifier = Modifier) 
                 description = "Counted from when a chat was last opened, so one you " +
                     "keep coming back to is never swept up because it began long ago."
             ) {
-                ChatRetention.CHOICES.forEach { days ->
+                ChatRetention.PRESETS.forEach { days ->
                     Choice(
                         label = ChatRetention.label(days),
                         selected = retentionDays == days,
                         onClick = { viewModel.setChatRetentionDays(days) }
                     )
                 }
+                Choice(
+                    // Shows the current value when it is a custom one, so the
+                    // row is not just "Custom…" with the number hidden inside.
+                    label = if (ChatRetention.isPreset(retentionDays)) {
+                        "After a set number of days…"
+                    } else {
+                        "${ChatRetention.label(retentionDays)} (custom)"
+                    },
+                    selected = !ChatRetention.isPreset(retentionDays),
+                    onClick = { customOpen = true }
+                )
             }
 
             SectionHeader("Graphs")
@@ -140,6 +158,62 @@ fun SettingsScreen(viewModel: SettingsViewModel, modifier: Modifier = Modifier) 
             }
         }
     }
+
+    if (customOpen) {
+        CustomRetentionDialog(
+            current = retentionDays,
+            onConfirm = {
+                viewModel.setChatRetentionDays(it)
+                customOpen = false
+            },
+            onDismiss = { customOpen = false }
+        )
+    }
+}
+
+@Composable
+private fun CustomRetentionDialog(
+    current: Int,
+    onConfirm: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var text by remember {
+        mutableStateOf(if (ChatRetention.isPreset(current)) "" else current.toString())
+    }
+    val parsed = ChatRetention.parse(text)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete chats after") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { new -> text = new.filter { it.isDigit() }.take(4) },
+                    label = { Text("Days") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    isError = text.isNotBlank() && parsed == null
+                )
+                if (text.isNotBlank() && parsed == null) {
+                    Text(
+                        "Enter between 1 and ${ChatRetention.MAX_DAYS} days.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { parsed?.let(onConfirm) },
+                // Cannot confirm a value that would silently do nothing.
+                enabled = parsed != null
+            ) { Text("Set") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }
 
 @Composable

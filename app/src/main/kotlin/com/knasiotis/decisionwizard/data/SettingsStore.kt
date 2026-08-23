@@ -20,13 +20,23 @@ enum class LaunchBehaviour {
 /** How long a chat is kept after it was last opened. Zero means forever. */
 object ChatRetention {
     const val FOREVER = 0
-    val CHOICES = listOf(FOREVER, 7, 30, 90)
+
+    /** The shortcuts. Anything else is a custom number of days. */
+    val PRESETS = listOf(FOREVER, 7, 30)
+
+    const val MAX_DAYS = 3650
 
     fun label(days: Int): String = when (days) {
         FOREVER -> "Keep them"
         1 -> "After a day"
         else -> "After $days days"
     }
+
+    fun isPreset(days: Int): Boolean = days in PRESETS
+
+    /** Null for anything that is not a usable number of days. */
+    fun parse(input: String): Int? =
+        input.trim().toIntOrNull()?.takeIf { it in 1..MAX_DAYS }
 }
 
 private val Context.preferences by preferencesDataStore(name = "settings")
