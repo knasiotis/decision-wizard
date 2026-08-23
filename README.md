@@ -35,9 +35,6 @@ for nothing.
 Grab the latest signed APK from the
 [**Releases**](https://github.com/knasiotis/decision-wizard/releases) page.
 
-Updates work well with [Obtainium](https://github.com/ImranR98/Obtainium) —
-point it at this repository and it will track releases for you.
-
 Requires Android 12 or newer.
 
 ## Features ✨
