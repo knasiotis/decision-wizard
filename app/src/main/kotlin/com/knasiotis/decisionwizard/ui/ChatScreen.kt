@@ -1,6 +1,7 @@
 package com.knasiotis.decisionwizard.ui
 
 import android.content.ClipData
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -25,13 +26,18 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import com.knasiotis.decisionwizard.chat.ChatEngine
+import com.knasiotis.decisionwizard.ui.chat.ChatTitleDialog
 import com.knasiotis.decisionwizard.chat.ChatState
 import com.knasiotis.decisionwizard.chat.ChatTurn
 import com.knasiotis.decisionwizard.model.Graph
@@ -46,11 +52,14 @@ import com.knasiotis.decisionwizard.model.Snippet
 fun ChatScreen(
     graph: Graph,
     state: ChatState,
+    title: String,
     onAnswer: (answerId: String) -> Unit,
     onRewindAndAnswer: (stepIndex: Int, answerId: String) -> Unit,
+    onRename: (String) -> Unit,
     onRestart: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var renaming by remember { mutableStateOf(false) }
     // Derived from the session every recomposition, never cached — the same rule
     // the canvas layout follows.
     val turns = ChatEngine.turns(graph, state)
@@ -64,7 +73,18 @@ fun ChatScreen(
 
     Scaffold(
         modifier = modifier,
-        topBar = { TopAppBar(title = { Text(graph.name) }) }
+        topBar = {
+            TopAppBar(
+                title = {
+                    // Tapping the title renames the chat, using the same dialog
+                    // that named it in the first place.
+                    Text(
+                        text = title,
+                        modifier = Modifier.clickable { renaming = true }
+                    )
+                }
+            )
+        }
     ) { insets ->
         LazyColumn(
             state = listState,
@@ -93,6 +113,18 @@ fun ChatScreen(
                 item { SessionEnd(deadEnd = deadEnd, onRestart = onRestart) }
             }
         }
+    }
+
+    if (renaming) {
+        ChatTitleDialog(
+            initial = title,
+            confirmLabel = "Rename",
+            onConfirm = {
+                onRename(it)
+                renaming = false
+            },
+            onDismiss = { renaming = false }
+        )
     }
 }
 

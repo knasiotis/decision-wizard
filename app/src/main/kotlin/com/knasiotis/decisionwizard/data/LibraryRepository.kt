@@ -12,6 +12,14 @@ import kotlinx.serialization.json.Json
  * The seam between stored rows and the domain types in :graphcore. Everything
  * above this layer works in Graph and ChatState and never sees an entity.
  */
+/** A resumed session and everything needed to render it. */
+data class LoadedSession(
+    val graph: Graph,
+    val state: ChatState,
+    val title: String,
+    val startedAt: Long
+)
+
 class LibraryRepository(
     private val graphs: GraphDao,
     private val sessions: SessionDao,
@@ -56,22 +64,32 @@ class LibraryRepository(
 
     suspend fun mostRecentSession(): SessionEntity? = sessions.mostRecentlyOpened()
 
-    suspend fun loadSession(sessionId: String): Pair<Graph, ChatState>? {
+    suspend fun loadSession(sessionId: String): LoadedSession? {
         val row = sessions.byId(sessionId) ?: return null
         val graph = load(row.graphId) ?: return null
-        return graph to Json.decodeFromString(ChatState.serializer(), row.stateJson)
+        return LoadedSession(
+            graph = graph,
+            state = Json.decodeFromString(ChatState.serializer(), row.stateJson),
+            title = row.title,
+            startedAt = row.startedAt
+        )
     }
+
+    suspend fun renameSession(sessionId: String, title: String) =
+        sessions.updateTitle(sessionId, title)
 
     suspend fun saveSession(
         sessionId: String,
         graph: Graph,
         state: ChatState,
+        title: String,
         startedAt: Long
     ) {
         sessions.upsert(
             SessionEntity(
                 sessionId = sessionId,
                 graphId = graph.graphId,
+                title = title,
                 graphRevision = graph.revision,
                 stateJson = Json.encodeToString(ChatState.serializer(), state),
                 startedAt = startedAt,

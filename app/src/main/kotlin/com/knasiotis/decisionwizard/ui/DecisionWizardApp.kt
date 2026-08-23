@@ -54,10 +54,12 @@ private object Routes {
     const val CHATS = "chats"
     const val GRAPHS = "graphs"
     const val SETTINGS = "settings"
-    const val NEW_CHAT = "chat/new/{graphId}"
+    const val NEW_CHAT = "chat/new/{graphId}/{title}"
     const val RESUME_CHAT = "chat/session/{sessionId}"
 
-    fun newChat(graphId: String) = "chat/new/$graphId"
+    // The title is user text and can hold slashes or spaces, so it is encoded
+    // into the path rather than concatenated raw.
+    fun newChat(graphId: String, title: String) = "chat/new/$graphId/${Uri.encode(title)}"
     fun resumeChat(sessionId: String) = "chat/session/$sessionId"
 }
 
@@ -150,7 +152,9 @@ fun DecisionWizardApp(
                 ChatsScreen(
                     viewModel = vm,
                     onOpenChat = { navController.navigate(Routes.resumeChat(it)) },
-                    onStartChat = { navController.navigate(Routes.newChat(it)) }
+                    onStartChat = { graphId, title ->
+                        navController.navigate(Routes.newChat(graphId, title))
+                    }
                 )
             }
 
@@ -178,7 +182,14 @@ fun DecisionWizardApp(
 
             composable(Routes.NEW_CHAT) { entry ->
                 val graphId = entry.arguments?.getString("graphId")
-                ChatRoute(app, key = "new:$graphId", sessionId = null, graphId = graphId)
+                val title = entry.arguments?.getString("title").orEmpty()
+                ChatRoute(
+                    app,
+                    key = "new:$graphId:$title",
+                    sessionId = null,
+                    graphId = graphId,
+                    initialTitle = Uri.decode(title)
+                )
             }
 
             composable(Routes.RESUME_CHAT) { entry ->
@@ -194,13 +205,14 @@ private fun ChatRoute(
     app: DecisionWizardApplication,
     key: String,
     sessionId: String?,
-    graphId: String?
+    graphId: String?,
+    initialTitle: String = ""
 ) {
     // Keyed, or navigating between two chats would reuse the first one's ViewModel.
     val vm: ChatViewModel = viewModel(
         key = key,
         factory = viewModelFactory {
-            initializer { ChatViewModel(app.repository, sessionId, graphId) }
+            initializer { ChatViewModel(app.repository, sessionId, graphId, initialTitle) }
         }
     )
 
@@ -213,8 +225,10 @@ private fun ChatRoute(
         else -> ChatScreen(
             graph = graph,
             state = ui.session,
+            title = ui.title,
             onAnswer = vm::answer,
             onRewindAndAnswer = vm::rewindAndAnswer,
+            onRename = vm::rename,
             onRestart = vm::restart
         )
     }

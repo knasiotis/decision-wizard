@@ -48,6 +48,12 @@ data class SessionEntity(
     @PrimaryKey val sessionId: String,
     val graphId: String,
     /**
+     * What the user called this chat. Blank on sessions created before titles
+     * existed, so the UI falls back to the graph name rather than showing an
+     * empty row.
+     */
+    val title: String,
+    /**
      * The revision this session was answered against. If the graph is later
      * updated, ChatEngine.turns() already skips nodes that no longer exist, so
      * an old session degrades rather than crashing — but this records that it

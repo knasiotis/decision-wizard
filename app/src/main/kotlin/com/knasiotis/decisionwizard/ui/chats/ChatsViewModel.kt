@@ -15,6 +15,7 @@ import kotlinx.serialization.json.Json
 
 data class ChatSummary(
     val sessionId: String,
+    val title: String,
     val graphName: String,
     val answerCount: Int,
     val lastOpenedAt: Long,
@@ -47,6 +48,8 @@ class ChatsViewModel(
 
         return ChatSummary(
             sessionId = sessionId,
+            // Sessions from before titles existed fall back to the graph name.
+            title = title.ifBlank { graphName },
             graphName = graphName,
             answerCount = answers,
             lastOpenedAt = lastOpenedAt,

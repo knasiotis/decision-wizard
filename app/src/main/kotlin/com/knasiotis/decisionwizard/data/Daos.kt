@@ -38,6 +38,7 @@ interface GraphDao {
 data class SessionListRow(
     val sessionId: String,
     val graphId: String,
+    val title: String,
     val graphName: String,
     val graphRevision: Int,
     val sessionRevision: Int,
@@ -56,6 +57,7 @@ interface SessionDao {
         """
         SELECT s.sessionId       AS sessionId,
                s.graphId         AS graphId,
+               s.title           AS title,
                g.name            AS graphName,
                g.revision        AS graphRevision,
                s.graphRevision   AS sessionRevision,
@@ -81,6 +83,9 @@ interface SessionDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(session: SessionEntity)
+
+    @Query("UPDATE sessions SET title = :title WHERE sessionId = :sessionId")
+    suspend fun updateTitle(sessionId: String, title: String)
 
     @Query("DELETE FROM sessions WHERE sessionId = :sessionId")
     suspend fun delete(sessionId: String)

@@ -34,19 +34,22 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.knasiotis.decisionwizard.library.GraphSummary
+import com.knasiotis.decisionwizard.ui.chat.ChatTitleDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatsScreen(
     viewModel: ChatsViewModel,
     onOpenChat: (String) -> Unit,
-    onStartChat: (String) -> Unit,
+    onStartChat: (graphId: String, title: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val chats by viewModel.chats.collectAsStateWithLifecycle()
     val graphs by viewModel.graphs.collectAsStateWithLifecycle()
     var pendingDelete by remember { mutableStateOf<ChatSummary?>(null) }
     var picking by remember { mutableStateOf(false) }
+    // Set once a graph is chosen; the naming step runs against it.
+    var naming by remember { mutableStateOf<GraphSummary?>(null) }
 
     Scaffold(
         modifier = modifier,
@@ -85,11 +88,23 @@ fun ChatsScreen(
     if (picking) {
         GraphPickerDialog(
             graphs = graphs,
-            onPick = {
+            onPick = { chosen ->
                 picking = false
-                onStartChat(it)
+                naming = chosen
             },
             onDismiss = { picking = false }
+        )
+    }
+
+    naming?.let { graph ->
+        ChatTitleDialog(
+            initial = graph.name,
+            confirmLabel = "Start",
+            onConfirm = { title ->
+                naming = null
+                onStartChat(graph.graphId, title)
+            },
+            onDismiss = { naming = null }
         )
     }
 
@@ -109,7 +124,7 @@ fun ChatsScreen(
 @Composable
 private fun GraphPickerDialog(
     graphs: List<GraphSummary>,
-    onPick: (String) -> Unit,
+    onPick: (GraphSummary) -> Unit,
     onDismiss: () -> Unit
 ) {
     var query by remember { mutableStateOf("") }
@@ -152,7 +167,7 @@ private fun GraphPickerDialog(
                                     style = MaterialTheme.typography.bodyLarge,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable { onPick(graph.graphId) }
+                                        .clickable { onPick(graph) }
                                         .padding(vertical = 12.dp)
                                 )
                             }
@@ -178,8 +193,8 @@ private fun DeleteChatDialog(
             // Spells out that the graph stays, because the card is named after
             // the graph and the two are easy to conflate.
             Text(
-                "The chat on \"${chat.graphName}\" will be deleted. " +
-                    "The graph itself is kept."
+                "\"${chat.title}\" will be deleted. " +
+                    "The graph \"${chat.graphName}\" is kept."
             )
         },
         confirmButton = { TextButton(onClick = onConfirm) { Text("Delete chat") } },
@@ -220,7 +235,16 @@ private fun ChatCard(chat: ChatSummary, onOpen: () -> Unit, onDelete: () -> Unit
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary
             )
-            Text(chat.graphName, style = MaterialTheme.typography.titleMedium)
+            Text(chat.title, style = MaterialTheme.typography.titleMedium)
+            if (chat.title != chat.graphName) {
+                // Only when it adds something — repeating the graph name under
+                // an identical title is noise.
+                Text(
+                    chat.graphName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Text(
                 "${chat.answerCount} answered · ${relativeTime(chat.lastOpenedAt)}",
                 style = MaterialTheme.typography.bodyMedium,
