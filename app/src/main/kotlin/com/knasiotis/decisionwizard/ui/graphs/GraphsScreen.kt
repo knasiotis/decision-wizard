@@ -1,5 +1,6 @@
 package com.knasiotis.decisionwizard.ui.graphs
 
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -39,11 +40,15 @@ import com.knasiotis.decisionwizard.data.GraphEntity
 fun GraphsScreen(
     viewModel: GraphsViewModel,
     onOpenGraph: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** A .dwiz the user tapped outside the app. Imported once, then released. */
+    pendingImportUri: Uri? = null,
+    onPendingImportHandled: () -> Unit = {}
 ) {
     val graphs by viewModel.graphs.collectAsStateWithLifecycle()
     val conflict by viewModel.conflict.collectAsStateWithLifecycle()
     val pendingDelete by viewModel.pendingDelete.collectAsStateWithLifecycle()
+    val exportRequest by viewModel.exportRequest.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
 
     val snackbars = remember { SnackbarHostState() }
@@ -52,6 +57,23 @@ fun GraphsScreen(
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri -> uri?.let(viewModel::import) }
+
+    val saver = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri ->
+        if (uri != null) viewModel.exportTo(uri) else viewModel.cancelExport()
+    }
+
+    LaunchedEffect(exportRequest) {
+        exportRequest?.let { saver.launch(it.fileName) }
+    }
+
+    LaunchedEffect(pendingImportUri) {
+        pendingImportUri?.let {
+            viewModel.import(it)
+            onPendingImportHandled()
+        }
+    }
 
     LaunchedEffect(message) {
         message?.let {
@@ -86,6 +108,7 @@ fun GraphsScreen(
                     GraphCard(
                         graph = graph,
                         onOpen = { onOpenGraph(graph.graphId) },
+                        onExport = { viewModel.askExport(graph) },
                         onDelete = { viewModel.askDelete(graph) }
                     )
                 }
@@ -134,7 +157,12 @@ private fun EmptyLibrary(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun GraphCard(graph: GraphEntity, onOpen: () -> Unit, onDelete: () -> Unit) {
+private fun GraphCard(
+    graph: GraphEntity,
+    onOpen: () -> Unit,
+    onExport: () -> Unit,
+    onDelete: () -> Unit
+) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -158,7 +186,10 @@ private fun GraphCard(graph: GraphEntity, onOpen: () -> Unit, onDelete: () -> Un
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                TextButton(onClick = onDelete) { Text("Delete") }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = onExport) { Text("Export") }
+                    TextButton(onClick = onDelete) { Text("Delete") }
+                }
             }
         }
     }

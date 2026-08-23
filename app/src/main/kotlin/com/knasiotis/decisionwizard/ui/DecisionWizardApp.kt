@@ -1,5 +1,6 @@
 package com.knasiotis.decisionwizard.ui
 
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -51,7 +52,11 @@ private object Routes {
 }
 
 @Composable
-fun DecisionWizardApp(app: DecisionWizardApplication) {
+fun DecisionWizardApp(
+    app: DecisionWizardApplication,
+    pendingImportUri: Uri? = null,
+    onPendingImportHandled: () -> Unit = {}
+) {
     val navController = rememberNavController()
     val backStack by navController.currentBackStackEntryAsState()
     val route = backStack?.destination
@@ -59,6 +64,14 @@ fun DecisionWizardApp(app: DecisionWizardApplication) {
     // The bottom bar belongs to the two top-level destinations only; a chat is
     // a full-screen task, not a tab.
     val showBottomBar = route.isOn(Routes.CHATS) || route.isOn(Routes.GRAPHS)
+
+    // A tapped .dwiz is handled on the Graphs screen, so go there first. The
+    // import itself is triggered inside that screen, once it is composed.
+    LaunchedEffect(pendingImportUri) {
+        if (pendingImportUri != null && !route.isOn(Routes.GRAPHS)) {
+            navController.navigate(Routes.GRAPHS) { launchSingleTop = true }
+        }
+    }
 
     Scaffold(
         bottomBar = {
@@ -103,7 +116,9 @@ fun DecisionWizardApp(app: DecisionWizardApplication) {
                 )
                 GraphsScreen(
                     viewModel = vm,
-                    onOpenGraph = { navController.navigate(Routes.chat(it)) }
+                    onOpenGraph = { navController.navigate(Routes.chat(it)) },
+                    pendingImportUri = pendingImportUri,
+                    onPendingImportHandled = onPendingImportHandled
                 )
             }
 

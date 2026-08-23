@@ -21,6 +21,9 @@ import kotlinx.coroutines.launch
 
 data class DeleteRequest(val graph: GraphEntity, val sessionCount: Int)
 
+/** Held while the system save dialog is open, so the result knows what to write. */
+data class ExportRequest(val graphId: String, val fileName: String)
+
 class GraphsViewModel(
     private val repository: LibraryRepository,
     private val files: FileGateway
@@ -36,6 +39,9 @@ class GraphsViewModel(
 
     private val _pendingDelete = MutableStateFlow<DeleteRequest?>(null)
     val pendingDelete: StateFlow<DeleteRequest?> = _pendingDelete.asStateFlow()
+
+    private val _exportRequest = MutableStateFlow<ExportRequest?>(null)
+    val exportRequest: StateFlow<ExportRequest?> = _exportRequest.asStateFlow()
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
@@ -95,6 +101,29 @@ class GraphsViewModel(
     }
 
     fun dismissConflict() { _conflict.value = null }
+
+    fun askExport(graph: GraphEntity) {
+        viewModelScope.launch {
+            val loaded = repository.load(graph.graphId) ?: return@launch
+            _exportRequest.value = ExportRequest(graph.graphId, DwizCodec.suggestedFileName(loaded))
+        }
+    }
+
+    fun exportTo(uri: Uri) {
+        val request = _exportRequest.value ?: return
+        _exportRequest.value = null
+        viewModelScope.launch {
+            val graph = repository.load(request.graphId) ?: return@launch
+            try {
+                files.write(uri, DwizCodec.encode(graph).toByteArray())
+                _message.value = "Exported \"${graph.name}\"."
+            } catch (e: Exception) {
+                _message.value = "Could not write that file."
+            }
+        }
+    }
+
+    fun cancelExport() { _exportRequest.value = null }
 
     fun askDelete(graph: GraphEntity) {
         viewModelScope.launch {
