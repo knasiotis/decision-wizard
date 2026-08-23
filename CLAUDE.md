@@ -439,7 +439,10 @@ Not done, in the order agreed:
 
 ### Open questions
 
-- Export extension is `.tgraph`, from when the project was called tgraph. The
-  app is now Decision Wizard. Keep `.tgraph` or rename before the first release
-  that ships import/export (v0.2)? Changing it after release breaks file
-  associations on installed devices.
+**Blocks v0.2: choose the export extension.** `.tgraph` dates from the old
+project name; the app is now Decision Wizard. v0.2 is the milestone that ships
+import/export, so it is the last moment this is free — once a release registers
+an intent filter and `.tgraph` files exist on disk, renaming strands those files
+and forces the importer to accept both extensions forever. Recommendation is
+`.dwiz`. **Settle this before writing the intent filter or the export flow,** not
+after.
