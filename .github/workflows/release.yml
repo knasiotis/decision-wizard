@@ -1,16 +1,20 @@
 name: Release
 
-# Tag push only. Nothing here runs on ordinary commits, so the expensive job
-# (which does need the Android SDK) happens a handful of times per month.
+# Two entry points, neither of which runs on ordinary commits — the expensive
+# job (the only one needing the Android SDK) stays rare.
 #
-#   git tag v0.1.0 && git push origin v0.1.0
+#   Tag push       -> build, sign, publish a GitHub Release
+#   Run workflow   -> build, sign, verify, publish nothing
 #
 # versionName comes from the tag with the leading v stripped; versionCode comes
 # from github.run_number, which is monotonic per workflow and so never goes
 # backwards the way a date or a commit count can.
 #
-# NOTE: this workflow cannot succeed until the :app module exists. Do not tag
-# a release before then.
+# Versions name end-user functionality. v0.1 is internal and never tagged —
+# following one hard-coded flow is not something to release — so the first tag
+# is v0.2.0:
+#
+#   git tag v0.2.0 && git push origin v0.2.0
 
 on:
   push:

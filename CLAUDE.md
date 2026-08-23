@@ -432,14 +432,24 @@ that pin down barycenter ordering will break for no good reason.
 
 ## Build order
 
-Ship each stage as a real signed APK before starting the next one.
+**Versions name end-user functionality.** A milestone that does not change what
+the other person can do does not get a tag. Infrastructure working is not a
+feature, so the release pipeline is proven with the `workflow_dispatch` signing
+rehearsal instead of by burning a version number.
 
-- **v0.1** — bundle the sample graph as an asset. Chat screen and traversal
-  only. No editor, no Room. Purpose: get Gradle, signing, secrets and the
-  release pipeline working while the app is too small to hide problems.
-- **v0.2** — Room, graph library, import/export.
-- **v0.3** — the canvas editor, layout, stub chips, undo/redo, delete ops.
-- **v0.4** — snippets, attachments, transcript export.
+- **v0.1 — internal, never tagged. Done.** Bundled sample graph, chat and
+  traversal only. Following one hard-coded flow is not worth releasing. Its
+  purpose was to get Gradle, CI and the app skeleton working while the app was
+  too small to hide problems. Lives on `main`; try it via the debug APK that
+  `test.yml` attaches to every run.
+- **v0.2.0 — the first actual release.** Room, the graph library, and `.dwiz`
+  import/export. This is the first build worth handing to someone else: they can
+  hold several flows, import one you sent them, and send one back. Authoring is
+  by hand-edited JSON until v0.3, which is exactly why the format stays
+  hand-editable.
+- **v0.3.0** — the canvas editor: layout, stub chips, undo/redo, delete ops.
+  Authoring moves onto the device.
+- **v0.4.0** — attachments and transcript export.
 
 ## Current state
 
@@ -452,12 +462,14 @@ dynamic colour, and that the app requests no permissions.
 
 Not done, in the order agreed:
 
-1. **Keystore and the four repository secrets** (see CI section), then tag
-   `v0.1.0` for the first signed APK. This closes out the actual point of the
-   v0.1 milestone: proving the release pipeline while the app is small.
+1. **Keystore and the four repository secrets** (see CI section), then run the
+   **Release** workflow manually (`workflow_dispatch`) as a signing rehearsal.
+   That proves the keystore and secrets while the app is still small, and
+   creates no tag — the first real tag is `v0.2.0`.
 2. **Raise `targetSdk` to 37.** Held at 36 only because the app had not run on a
    device; it now has.
-3. **v0.2** — Room, the graph library screen, and `.dwiz` import/export.
+3. **v0.2.0** — Room, the graph library screen, and `.dwiz` import/export. The
+   first tagged release.
 4. **Wire `GraphEditor.graph` to `mutableStateOf`** so recomposition fires. It is
    currently a plain `var` and will not trigger a redraw. Needed for v0.3, but
    easy to forget because it compiles fine.
