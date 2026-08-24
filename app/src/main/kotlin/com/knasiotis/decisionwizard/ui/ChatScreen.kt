@@ -21,6 +21,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -67,6 +68,7 @@ fun ChatScreen(
     onRewindAndAnswer: (stepIndex: Int, answerId: String) -> Unit,
     onRename: (String) -> Unit,
     onRestart: () -> Unit,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var renaming by rememberSaveable { mutableStateOf(false) }
@@ -117,6 +119,20 @@ fun ChatScreen(
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             }
+                        )
+                    }
+                },
+                // The bottom bar is hidden on a chat, so without this the only
+                // way out is the system back gesture — the same gap the editor
+                // had. Matches the arrow there rather than inventing a second
+                // way of leaving a screen.
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_back),
+                            // Named for a screen reader even though the glyph
+                            // needs no label sighted.
+                            contentDescription = "Back"
                         )
                     }
                 }

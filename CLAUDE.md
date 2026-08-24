@@ -600,11 +600,11 @@ debug build is fine.
 
 - **`01-chat.jpg` — present.** A chat mid-walk on the demo graph. It is a JPEG;
   F-Droid accepts `png`, `jpg` and `jpeg` equally.
-- **`02-canvas` — deliberately post-release.** The editor, showing a branch and
-  the stub chips on the cycle. It waits for v0.5.6 to ship because v0.5.6 is what
-  fixes the edge routing — a canvas shot taken before it would show edges running
-  behind the nodes they pass, and would be the one image advertising a bug that
-  is already fixed. It lands in the tag after this one.
+- **`02-canvas` — still to take, off the v0.5.7 build.** The editor, showing a
+  branch and the stub chips on the cycle. It waited deliberately: v0.5.6 squared
+  off the edge routing and v0.5.7 stopped lines being painted across the labels,
+  so anything shot before v0.5.7 would have been the one image on the listing
+  advertising a bug that is already fixed.
 
 The chat one leads because F-Droid's carousel shows the first file first. A
 node-sheet shot and a library shot were considered and dropped: they show chrome
@@ -654,10 +654,11 @@ them before tagging** rather than after.
 
 Consequences for the submission:
 
-- v0.5.6 carries `01-chat.jpg`, so its listing has one screenshot. The canvas
-  shot has to be in whatever tag comes next, not added to `main` afterwards.
+- Every tag from v0.5.6 on carries `01-chat.jpg`, so the listing has one
+  screenshot. The canvas shot has to be inside whatever tag comes next, not
+  added to `main` afterwards.
 - The fdroiddata merge request should point `commit:` at **the first tag that
-  contains the screenshots**, not necessarily at v0.5.6.
+  contains the screenshots**, which is not necessarily the newest one.
 - The alternative, if a listing is wanted sooner, is putting the images directly
   in the fdroiddata repo under `metadata/com.knasiotis.decisionwizard/en-US/`,
   which takes precedence over the app repo. Prefer keeping them here.
@@ -897,10 +898,22 @@ rehearsal instead of by burning a version number.
   rather than a minor one — nothing new is possible that was not possible before.
   The F-Droid packaging rides along on it rather than taking a number of its own.
 
-- **v0.6.0 — the search bar, not started, and reserved for it alone.** Fixes and
-  packaging do not go on this tag; it names the one thing a user gets out of it.
-  A search bar over the **Chats** list and the **Graphs** list. Both grow past a screenful quickly and there is currently no
+- **v0.6.0 — the search bar, plus a way out of a chat.** Two features now, which
+  loosens the original "reserved for it alone": that rule was about keeping
+  *fixes and packaging* off a feature tag, and both of these are things a user
+  gets. Packaging still does not go here.
+
+  **The search bar — not started.** A search bar over the **Chats** list and the
+  **Graphs** list. Both grow past a screenful quickly and there is currently no
   way to find anything in either.
+
+  **A back arrow in the chat's top bar — built, on `main`, waiting for a tag.**
+  The bottom bar is hidden on a chat route, and the chat passed no `onBack`, so
+  the system back gesture was the only way out — the same gap the editor had
+  before v0.5.x put an arrow in its top bar. It matches that arrow rather than
+  inventing a second way of leaving a screen. Backing out of a brand-new chat
+  still leaves it in the list, which is the documented intent: a chat is saved
+  from the moment it is created.
 
   The pattern already exists three times over — the new-chat graph picker, the
   connect-to-existing target list, and move-children-to — all substring,
@@ -999,23 +1012,29 @@ version of its own. The published APK is versionCode 506, signed with the
 expected key, and its GitHub notes came from `release-notes/v0.5.6.md`, so the
 `--notes-file` path is proven.
 
-**The tree is now on v0.5.7**, two editor fixes, untagged. `appVersionName=0.5.7`
-gives versionCode **507**, with `changelogs/507.txt` and `fdroid/…yml` agreeing.
-`release.yml` refuses a tag that disagrees with `appVersionName`, so v0.5.7 is
-the only tag this tree can publish.
+**v0.5.7 is released** — the two editor fixes. Its notes published clean, so the
+comment stripping is proven as well as the `--notes-file` path.
+
+**`main` now carries the chat back arrow, unversioned.** It is a user-facing
+change with no tag of its own: v0.6.0 belongs to the search session, so whoever
+cuts that tag picks this up with it. Nothing needs doing to it beyond bumping
+`appVersionName` when that happens.
 
 **v0.6.0 is search and is being built in a separate session**, so do not assume
 the tree is yours and do not take that number.
 
 Also outstanding:
 
-1. **Tag v0.5.6** — push `main`, then the tag. That is the whole release.
-2. **The canvas screenshot**, taken from the released v0.5.6 build so it shows
-   the fixed edge routing, and committed *before* the next tag — F-Droid reads
-   metadata from the tagged tree, not from `main`. A re-take of the chat shot
-   showing a snippet and its copy button would also be an improvement.
-3. **The fdroiddata merge request**. `commit:` currently points at `v0.5.6`,
-   which carries the chat shot only.
+1. **The chat back arrow is built and unversioned** on `main`. It ships with the
+   next tag, whichever that is.
+2. **The canvas screenshot**, taken from the released **v0.5.7** build — that is
+   the one where labels are no longer painted over, so it is the first build
+   whose canvas is worth photographing — and committed *before* the next tag,
+   because F-Droid reads metadata from the tagged tree, not from `main`. A
+   re-take of the chat shot showing a snippet and its copy button would also be
+   an improvement.
+3. **The fdroiddata merge request**. `commit:` points at `v0.5.7`, which carries
+   the chat shot only.
 4. **v0.6** — search, in the other session. See the build order above.
 5. **Consider raising `targetSdk` to 37** during a device test pass. Nothing
    needs it; there is no Play Store deadline since distribution is Obtainium.

@@ -232,13 +232,20 @@ fun DecisionWizardApp(
                     key = "new:$graphId:$title",
                     sessionId = null,
                     graphId = graphId,
+                    onBack = { navController.popBackStack() },
                     initialTitle = Uri.decode(title)
                 )
             }
 
             composable(Routes.RESUME_CHAT) { entry ->
                 val sessionId = entry.arguments?.getString("sessionId")
-                ChatRoute(app, key = "session:$sessionId", sessionId = sessionId, graphId = null)
+                ChatRoute(
+                    app,
+                    key = "session:$sessionId",
+                    sessionId = sessionId,
+                    graphId = null,
+                    onBack = { navController.popBackStack() }
+                )
             }
         }
     }
@@ -250,6 +257,7 @@ private fun ChatRoute(
     key: String,
     sessionId: String?,
     graphId: String?,
+    onBack: () -> Unit,
     initialTitle: String = ""
 ) {
     // Keyed, or navigating between two chats would reuse the first one's ViewModel.
@@ -276,7 +284,8 @@ private fun ChatRoute(
             onAnswer = vm::answer,
             onRewindAndAnswer = vm::rewindAndAnswer,
             onRename = vm::rename,
-            onRestart = vm::restart
+            onRestart = vm::restart,
+            onBack = onBack
         )
     }
 }
