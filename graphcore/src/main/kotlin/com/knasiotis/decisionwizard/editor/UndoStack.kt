@@ -12,8 +12,20 @@ import com.knasiotis.decisionwizard.model.Graph
  */
 data class Snapshot(
     val graph: Graph,
+    /** What this edit did: "Added \"Check cable\"". */
     val description: String,
-    val focusNodeId: String?
+    val focusNodeId: String?,
+    /**
+     * What *taking it back* does: "Removed \"Check cable\"".
+     *
+     * Undoing an addition is a removal, and "Undone: Added…" describes the edit
+     * rather than what the user just watched happen. Both phrasings are stored
+     * so neither has to be derived from the other.
+     *
+     * Deliberately has no default: an edit that cannot say what undoing it does
+     * should not compile.
+     */
+    val undoneDescription: String
 )
 
 class UndoStack(initial: Graph, private val limit: Int = 50) {
@@ -22,7 +34,7 @@ class UndoStack(initial: Graph, private val limit: Int = 50) {
     private val redoStack = ArrayDeque<Snapshot>()
 
     init {
-        undoStack.addLast(Snapshot(initial, "Opened", null))
+        undoStack.addLast(Snapshot(initial, "Opened", null, "Opened"))
     }
 
     val canUndo: Boolean get() = undoStack.size > 1
@@ -46,8 +58,13 @@ class UndoStack(initial: Graph, private val limit: Int = 50) {
     val undoDescription: String? get() = undoSnapshot?.description
     val redoDescription: String? get() = redoSnapshot?.description
 
-    fun commit(graph: Graph, description: String, focusNodeId: String? = null) {
-        undoStack.addLast(Snapshot(graph, description, focusNodeId))
+    fun commit(
+        graph: Graph,
+        description: String,
+        focusNodeId: String?,
+        undoneDescription: String
+    ) {
+        undoStack.addLast(Snapshot(graph, description, focusNodeId, undoneDescription))
         while (undoStack.size > limit) undoStack.removeFirst()
         redoStack.clear()
     }
@@ -90,10 +107,15 @@ class GraphEditor(initial: Graph) {
     /** The edit an undo would take back, for saying what was undone. */
     val undoSnapshot: Snapshot? get() = stack.undoSnapshot
 
-    fun applyStructural(next: Graph, description: String, focusNodeId: String?) {
+    fun applyStructural(
+        next: Graph,
+        description: String,
+        focusNodeId: String?,
+        undoneDescription: String
+    ) {
         draftBase = null
         graph = next
-        stack.commit(next, description, focusNodeId)
+        stack.commit(next, description, focusNodeId, undoneDescription)
     }
 
     /** Per-keystroke. Updates live state without touching history. */
@@ -103,11 +125,15 @@ class GraphEditor(initial: Graph) {
     }
 
     /** Called when the editing sheet closes. No-op if nothing actually changed. */
-    fun commitDraft(description: String, focusNodeId: String?) {
+    fun commitDraft(
+        description: String,
+        focusNodeId: String?,
+        undoneDescription: String
+    ) {
         val base = draftBase ?: return
         draftBase = null
         if (base == graph) return
-        stack.commit(graph, description, focusNodeId)
+        stack.commit(graph, description, focusNodeId, undoneDescription)
     }
 
     /** Called when the sheet is dismissed without saving. */

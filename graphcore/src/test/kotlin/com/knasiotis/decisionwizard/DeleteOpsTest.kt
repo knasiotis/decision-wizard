@@ -160,7 +160,7 @@ class UndoStackTest {
     @Test
     fun `undo returns the state before the edit`() {
         val editor = com.knasiotis.decisionwizard.editor.GraphEditor(start)
-        editor.applyStructural(next, "Added \"B\"", "b")
+        editor.applyStructural(next, "Added \"B\"", "b", "Removed \"B\"")
 
         assertEquals(2, editor.graph.nodes.size)
         assertNotNull(editor.undo())
@@ -171,7 +171,7 @@ class UndoStackTest {
     @Test
     fun `the snapshot to announce names the edit, not the state before it`() {
         val editor = com.knasiotis.decisionwizard.editor.GraphEditor(start)
-        editor.applyStructural(next, "Added \"B\"", "b")
+        editor.applyStructural(next, "Added \"B\"", "b", "Removed \"B\"")
 
         assertEquals("Added \"B\"", editor.undoSnapshot?.description)
         assertEquals("b", editor.undoSnapshot?.focusNodeId)
@@ -183,7 +183,7 @@ class UndoStackTest {
     @Test
     fun `redo names the edit being re-applied`() {
         val editor = com.knasiotis.decisionwizard.editor.GraphEditor(start)
-        editor.applyStructural(next, "Added \"B\"", "b")
+        editor.applyStructural(next, "Added \"B\"", "b", "Removed \"B\"")
         editor.undo()
 
         assertEquals("Added \"B\"", editor.redoLabel)
@@ -195,5 +195,25 @@ class UndoStackTest {
         val editor = com.knasiotis.decisionwizard.editor.GraphEditor(start)
         assertNull(editor.undoSnapshot)
         assertNull(editor.undo())
+    }
+}
+
+/**
+ * Undo and redo must each say what just happened to the graph, not which button
+ * was pressed. Undoing an addition is a removal.
+ */
+class UndoWordingTest {
+
+    private val start = Fixtures.graph("a", Fixtures.node("a"))
+    private val next = Fixtures.graph("a", Fixtures.node("a"), Fixtures.node("b"))
+
+    @Test
+    fun `undoing an addition reads as a removal, and redoing it as an addition`() {
+        val editor = com.knasiotis.decisionwizard.editor.GraphEditor(start)
+        editor.applyStructural(next, "Added \"B\"", "b", "Removed \"B\"")
+
+        assertEquals("Removed \"B\"", editor.undoSnapshot?.undoneDescription)
+        editor.undo()
+        assertEquals("Added \"B\"", editor.redo()?.description)
     }
 }
