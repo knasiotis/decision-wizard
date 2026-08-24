@@ -149,6 +149,26 @@ fun EditorScreen(
         scale = next
     }
 
+    /**
+     * Keeps the canvas in the viewport. Centring one node on a graph that
+     * already fits shoves the rest of it off to one side, which reads as the
+     * jump having landed somewhere wrong rather than on the node it flashed —
+     * and the further out you zoom, the further it is shoved.
+     */
+    fun keepInView(wanted: Offset, of: GraphLayout): Offset {
+        val margin = 24f * density
+        fun axis(want: Float, content: Float, extent: Int): Float =
+            if (content + margin * 2 <= extent) {
+                (extent - content) / 2f
+            } else {
+                want.coerceIn(extent - content - margin, margin)
+            }
+        return Offset(
+            axis(wanted.x, of.width * scale * density, viewport.width),
+            axis(wanted.y, of.height * scale * density, viewport.height)
+        )
+    }
+
     fun lookAt(nodeId: String, remember: Boolean) {
         val current = layout ?: return
         val position = current.positions[nodeId] ?: return
@@ -158,9 +178,12 @@ fun EditorScreen(
         if (remember) cameFrom.add(pan)
         // Centre the node: a point on screen is content * scale + pan, so this
         // is that solved for pan.
-        target = Offset(
-            viewport.width / 2f - (position.x + NODE_WIDTH / 2) * scale * density,
-            viewport.height / 2f - (position.y + height / 2) * scale * density
+        target = keepInView(
+            Offset(
+                viewport.width / 2f - (position.x + NODE_WIDTH / 2) * scale * density,
+                viewport.height / 2f - (position.y + height / 2) * scale * density
+            ),
+            current
         )
         focused = nodeId
         focusKey++
