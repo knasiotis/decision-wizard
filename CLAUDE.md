@@ -586,6 +586,20 @@ rehearsal instead of by burning a version number.
   wording, so exporting one is formatting `Answered`, with no graph to consult
   and nothing to reconcile.
 
+- **v0.5.0 — done.** Snippets can be written rather than only read, resolutions,
+  transcript export, graph copy, clickable stub chips, and undo that says what it
+  did and takes you there.
+- **v0.6.0 — planned, not started.** A search bar over the **Chats** list and the
+  **Graphs** list. Both grow past a screenful quickly and there is currently no
+  way to find anything in either.
+
+  The pattern already exists three times over — the new-chat graph picker, the
+  connect-to-existing target list, and move-children-to — all substring,
+  case-insensitive, trimmed, with an explicit "nothing matches" rather than an
+  empty list. Follow it rather than inventing a fourth behaviour. Searching chats
+  should match the chat's own name *and* its graph's name, since a chat named
+  "Tuesday callout" is often looked for by the flow it ran on.
+
 **Attachments are deferred**, deliberately, and are no longer part of v0.4. They
 are the one feature that forces `.dwiz` to become a zip, and nothing so far has
 needed them. `DwizCodec` already sniffs the zip magic bytes, so the door stays
@@ -667,7 +681,10 @@ tests. Four signed test builds published from the `v0.2` branch.
 **not yet opened or merged**, so the tags are on the branch rather than on
 `main`.
 
-Outstanding:
+Outstanding, and **v0.6 is search over the Chats and Graphs lists** — agreed but
+deliberately not started.
+
+Also outstanding:
 
 1. **Open and merge the v0.2 PR**, then tag `v0.2.0` on `main`.
 2. **v0.3** — see the plan above.
