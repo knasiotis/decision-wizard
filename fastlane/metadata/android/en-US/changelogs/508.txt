@@ -1,0 +1,11 @@
+Editor and chat fixes.
+
+* Tapping a stub chip now pins the node at the other end to the middle of the
+  screen at the zoom you were already using. It previously slid the canvas
+  sideways and stopped short of the node, sometimes pushing the graph off the
+  screen altogether.
+* The branches leaving a question are drawn apart from each other. They used to
+  leave from the same point and run along the same line, which read as one line
+  that forks rather than as the separate paths they are.
+* A back arrow in the chat's top bar. The bottom bar is hidden while a chat is
+  open, so the system back gesture used to be the only way out.

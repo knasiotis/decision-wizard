@@ -686,7 +686,7 @@ Note that `README.md` says "the app asks for nothing", which is true of the
 manifest but not literally true of the built APK's permission list.
 
 
-## Two bugs worth not re-introducing
+## Three bugs worth not re-introducing
 
 Both shipped in v0.5.6 as fixes and came back, because each fix addressed the
 symptom and left the cause. Both now have tests that fail against the old code —
@@ -695,24 +695,33 @@ way to know a regression test regresses anything.
 
 ### A jump has to arrive at the node
 
+Fixed three times. The first two failed the same way, so the shape of the mistake
+matters more than either fix.
+
 **Symptom:** tapping a stub chip slid the canvas sideways and stopped somewhere
-that was not the node it had just flashed. Worst when zoomed out.
+that was not the node it had just flashed — sometimes pushing the graph off the
+screen entirely.
 
-**Cause:** `keepInView` treated "keep the canvas on screen" as the *answer*
-rather than as a *constraint on* the answer. Whenever the canvas fitted an axis
-it returned the pan that centred the whole graph and discarded the requested pan
-entirely — so on that axis every jump produced the same movement no matter which
-node was asked for. Zooming out is what made the width fit, which is why zooming
-out made it worse.
+**Cause, both times:** the code tried to satisfy *two* rules at once — put the
+node in the middle, and keep the whole canvas on screen. **They contradict each
+other**, and the containment rule always won. A node near the edge of a graph
+larger than the screen cannot be centred *and* leave the rest of the graph
+visible. v0.5.6 centred the whole canvas whenever it fitted an axis, throwing the
+request away outright; v0.5.7 clamped the request into the range that kept the
+canvas covering the viewport, which is better but still refuses to centre exactly
+the nodes a user is most likely to jump to.
 
-**Fix:** both cases are a *range* of legal pans, and the wanted pan is clamped
-into it. Content smaller than the viewport is held inside it, larger is held
-covering it, and either way the request survives as far as the range allows.
+**Fix:** there is only one rule. `Viewport.centreOn` returns the pan that puts the
+node in the middle, nothing is clamped, and `scale` is read but never written so
+the zoom survives. **A centred node is on screen by construction** — that is the
+only guarantee a jump owes anyone. The canvas hanging off the edges is what
+panning is for.
 
-The arithmetic is now `Viewport.clampPan` in `:graphcore`, not inline in the
-editor, so it is reachable from a JVM test — see `ViewportTest`. **Do not move it
-back into `:app`.** It is pure float arithmetic with no Android in it, and it is
-the second thing on this list precisely because it was untestable where it was.
+`ViewportTest` asserts the node lands dead centre across zoom levels and
+densities, including at the far edges of a large canvas, which is where any
+reintroduced containment rule breaks first. **Do not add one back**, and do not
+move the arithmetic into `:app` — it is pure float maths, and being unreachable
+from a JVM test is why this took three attempts.
 
 ### Edges must be drawn under every label, not just their own
 
@@ -730,7 +739,31 @@ band, so their label midpoints share a y and labels whose x's are close print on
 top of each other. Labels now step above and below the line to miss each other,
 alternating so the row stays centred on its band.
 
-**`LayoutEngine` was not at fault for either.** Worth knowing before digging
+### Two answers from one node are two paths
+
+**Symptom:** the branches leaving a question read as a single line that forks, so
+you cannot tell which one you are following.
+
+**Cause:** every route left from `source.x + NODE_WIDTH / 2` and ran along the
+same `bandBelow` lane, so siblings shared their whole departure — same point,
+same horizontal run — and only parted at the very end.
+
+**Fix:** each drawn answer gets a slot. It leaves from its own point along the
+source's bottom edge, `NODE_WIDTH * (slot + 1) / (slots + 1)`, and runs along its
+own lane across the empty band, `laneBelow`. One drawn answer still gets the
+middle of the edge and the middle of the band, so nothing changed for the common
+case.
+
+**Only *drawn* answers take a slot.** Counting the chips and dangling answers too
+would bunch the real lines to one side of a node whose other answers are not
+drawn at all.
+
+`LayoutEngineTest."answers leaving the same node share no line"` checks departure
+points and lanes are pairwise distinct. The older test that pinned the departure
+to the source's centre was relaxed to "somewhere under the source" — that was a
+contract change, not a test being loosened to pass.
+
+**`LayoutEngine` was not at fault for either of those two.** Worth knowing before digging
 there: `bandBelow` already routes through the gap using each layer's real tallest
 node, and `LayoutEngineTest` now proves it with heights that vary by title
 length. The old checks all passed a flat 64 for every bubble, which is the one
@@ -907,7 +940,12 @@ rehearsal instead of by burning a version number.
   **Graphs** list. Both grow past a screenful quickly and there is currently no
   way to find anything in either.
 
-  **A back arrow in the chat's top bar — built, on `main`, waiting for a tag.**
+  **A back arrow in the chat's top bar — shipped in v0.5.8, not here.** It was
+  built for this tag, but it landed on `main` before v0.5.8 was cut and any tag
+  includes everything on `main`, so it went out with the fixes. Left recorded
+  here because it was asked for as part of this work.
+
+  Original note:
   The bottom bar is hidden on a chat route, and the chat passed no `onBack`, so
   the system back gesture was the only way out — the same gap the editor had
   before v0.5.x put an arrow in its top bar. It matches that arrow rather than
@@ -1012,21 +1050,21 @@ version of its own. The published APK is versionCode 506, signed with the
 expected key, and its GitHub notes came from `release-notes/v0.5.6.md`, so the
 `--notes-file` path is proven.
 
-**v0.5.7 is released** — the two editor fixes. Its notes published clean, so the
-comment stripping is proven as well as the `--notes-file` path.
+**v0.5.7 is released** — two editor fixes. Its notes published clean, so the
+comment stripping is proven as well as the `--notes-file` path. One of those two
+fixes was wrong, which is what v0.5.8 is.
 
-**`main` now carries the chat back arrow, unversioned.** It is a user-facing
-change with no tag of its own: v0.6.0 belongs to the search session, so whoever
-cuts that tag picks this up with it. Nothing needs doing to it beyond bumping
-`appVersionName` when that happens.
+**The tree is on v0.5.8**, untagged: the stub-chip jump done properly, branches
+drawn apart from each other, and the chat back arrow that had been sitting
+unversioned on `main`. `appVersionName=0.5.8` gives versionCode **508**, with
+`changelogs/508.txt` and `fdroid/…yml` agreeing.
 
 **v0.6.0 is search and is being built in a separate session**, so do not assume
 the tree is yours and do not take that number.
 
 Also outstanding:
 
-1. **The chat back arrow is built and unversioned** on `main`. It ships with the
-   next tag, whichever that is.
+1. **Tag v0.5.8.** It carries the two stub/edge fixes and the chat back arrow.
 2. **The canvas screenshot**, taken from the released **v0.5.7** build — that is
    the one where labels are no longer painted over, so it is the first build
    whose canvas is worth photographing — and committed *before* the next tag,
