@@ -26,6 +26,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -207,7 +208,16 @@ fun EditorScreen(
                         }
                     }
                 },
-                navigationIcon = { TextButton(onClick = { leave() }) { Text("Back") } },
+                navigationIcon = {
+                    IconButton(onClick = { leave() }) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_back),
+                            // Named for a screen reader even though the glyph
+                            // needs no label sighted.
+                            contentDescription = "Back"
+                        )
+                    }
+                },
                 actions = {
                     TextButton(onClick = viewModel::undo, enabled = ui.canUndo) {
                         Icon(
