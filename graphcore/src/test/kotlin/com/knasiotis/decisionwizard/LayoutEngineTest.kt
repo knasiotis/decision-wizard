@@ -7,6 +7,8 @@ import com.knasiotis.decisionwizard.layout.Point
 import com.knasiotis.decisionwizard.layout.Position
 import com.knasiotis.decisionwizard.layout.midpointOf
 import com.knasiotis.decisionwizard.model.Graph
+import com.knasiotis.decisionwizard.model.GraphValidator
+import com.knasiotis.decisionwizard.model.parseGraph
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertContains
@@ -251,6 +253,42 @@ class LayoutEngineTest {
                     (from.x == to.x || from.y == to.y)
             }
             assertTrue(onSome, "label point $middle is off the route ${edge.route}")
+        }
+    }
+
+    /**
+     * The demo graph is what the F-Droid screenshots are taken of, and it is
+     * shaped for that: no warnings to clutter the canvas, and exactly one stub
+     * so there is a single reciprocal chip pair to photograph. Both are easy to
+     * break by re-pointing one answer.
+     */
+    @Test
+    fun `the demo graph stays shaped for its screenshots`() {
+        val graph = parseGraph(
+            checkNotNull(javaClass.getResourceAsStream("/pc-wont-turn-on.dwiz")) {
+                "pc-wont-turn-on.dwiz missing from test resources"
+            }.bufferedReader().readText()
+        )
+        val layout = LayoutEngine.layout(graph, strictHeights(graph))
+
+        assertEquals(
+            emptyList(), GraphValidator.validate(graph),
+            "a badge on a bubble would clutter the canvas shot"
+        )
+        assertEquals(
+            1, layout.edges.count { it.kind == EdgeKind.STUB },
+            "one stub, so there is a single chip pair to photograph"
+        )
+        layout.edges.filter { it.kind == EdgeKind.ARROW }.forEach { edge ->
+            edge.route.zipWithNext { from, to ->
+                layout.positions.forEach { (id, node) ->
+                    if (id == edge.sourceId || id == edge.targetId) return@forEach
+                    assertTrue(
+                        !crosses(from, to, node, 64f),
+                        "${edge.answerId}: $from -> $to runs over $id"
+                    )
+                }
+            }
         }
     }
 

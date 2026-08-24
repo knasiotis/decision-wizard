@@ -1,0 +1,379 @@
+{
+  "schemaVersion": 1,
+  "graphId": "c7ba3627-993e-40a6-a305-19d64798a3c9",
+  "name": "PC won't turn on",
+  "description": "Desk-side triage for no power, no display, or a PC that will not boot",
+  "revision": 1,
+  "updatedAt": "2026-08-24T09:15:00Z",
+  "rootNodeId": "n-power-btn",
+  "nodes": [
+    {
+      "id": "n-power-btn",
+      "title": "What happens when you press the power button?",
+      "body": "Ask the user to press and hold for one second, then watch and listen. Fans and case lights count as power, even if the screen stays black.",
+      "answers": [
+        {
+          "id": "e-1",
+          "label": "Nothing at all",
+          "targetNodeId": "n-power-cable"
+        },
+        {
+          "id": "e-2",
+          "label": "Fans and lights come on",
+          "targetNodeId": "n-display"
+        },
+        {
+          "id": "e-3",
+          "label": "It starts, then shuts off",
+          "targetNodeId": "n-shutdown"
+        }
+      ]
+    },
+    {
+      "id": "n-power-cable",
+      "title": "Reseat the power cable and try another outlet",
+      "body": "Check the kettle lead at both the wall and the back of the PC — it works loose easily. Then try a different socket, bypassing any extension lead or surge protector.",
+      "snippets": [
+        {
+          "id": "s-1",
+          "label": "Ticket note",
+          "text": "No power at all on first inspection. Reseated IEC lead at both ends and tested a known-good wall outlet, bypassing the extension lead."
+        }
+      ],
+      "answers": [
+        {
+          "id": "e-4",
+          "label": "It powers on now",
+          "targetNodeId": "n-display"
+        },
+        {
+          "id": "e-5",
+          "label": "Still completely dead",
+          "targetNodeId": "n-psu-switch"
+        }
+      ]
+    },
+    {
+      "id": "n-psu-switch",
+      "title": "Check the PSU switch and voltage selector",
+      "body": "The rocker switch on the rear of the power supply must be set to I, not O. If there is a red voltage selector next to it, confirm it reads 230V.",
+      "answers": [
+        {
+          "id": "e-6",
+          "label": "That was it — it powers on",
+          "targetNodeId": "n-resolved-boots"
+        },
+        {
+          "id": "e-7",
+          "label": "No change",
+          "targetNodeId": "n-escalate-hw"
+        }
+      ]
+    },
+    {
+      "id": "n-shutdown",
+      "title": "Does it beep before shutting off?",
+      "body": "Listen for a pattern of beeps from the internal speaker in the first few seconds. A repeating beep is a POST code and usually points at memory.",
+      "answers": [
+        {
+          "id": "e-8",
+          "label": "Yes, it beeps",
+          "targetNodeId": "n-ram"
+        },
+        {
+          "id": "e-9",
+          "label": "No beeps, just cuts out",
+          "targetNodeId": "n-dust"
+        }
+      ]
+    },
+    {
+      "id": "n-dust",
+      "title": "Check for overheating and blocked airflow",
+      "body": "Shut down and feel the vents. Heavy dust in the CPU cooler or a fan that is not spinning will trip thermal protection within seconds of powering on.",
+      "snippets": [
+        {
+          "id": "s-2",
+          "label": "Ticket note",
+          "text": "PC powered on then shut down within seconds, no POST beeps. Inspected cooling: checked CPU fan rotation and cleared dust from intake vents."
+        }
+      ],
+      "answers": [
+        {
+          "id": "e-10",
+          "label": "Clearing it fixed the shutdown",
+          "targetNodeId": "n-resolved-boots"
+        },
+        {
+          "id": "e-11",
+          "label": "Still cuts out",
+          "targetNodeId": "n-escalate-hw"
+        }
+      ]
+    },
+    {
+      "id": "n-ram",
+      "title": "Reseat the memory modules",
+      "body": "Power off and unplug at the wall first. Open the side panel, release the clips at both ends of each module, then press it back until both clips click home.",
+      "snippets": [
+        {
+          "id": "s-3",
+          "label": "Ticket note",
+          "text": "Repeating POST beep on power-up, consistent with a memory fault. Powered down, reseated all DIMMs and confirmed both retaining clips engaged."
+        }
+      ],
+      "answers": [
+        {
+          "id": "e-12",
+          "label": "It boots normally now",
+          "targetNodeId": "n-resolved-ram"
+        },
+        {
+          "id": "e-13",
+          "label": "Still beeping",
+          "targetNodeId": "n-recheck-internal"
+        }
+      ]
+    },
+    {
+      "id": "n-recheck-internal",
+      "title": "Recheck the internals before escalating",
+      "body": "A module that is only half seated is the single most common reason a reseat does not take. Reseat one module at a time and try booting with just one fitted.",
+      "answers": [
+        {
+          "id": "e-14",
+          "label": "Try the memory again",
+          "targetNodeId": "n-ram"
+        },
+        {
+          "id": "e-15",
+          "label": "Everything is seated correctly",
+          "targetNodeId": "n-escalate-hw"
+        }
+      ]
+    },
+    {
+      "id": "n-display",
+      "title": "Is there anything on the screen?",
+      "body": "Look for any image at all, including a manufacturer logo or a BIOS message. A 'no signal' message from the monitor counts as a black screen.",
+      "answers": [
+        {
+          "id": "e-16",
+          "label": "Yes, it boots normally",
+          "targetNodeId": "n-resolved-boots"
+        },
+        {
+          "id": "e-17",
+          "label": "No, the screen stays black",
+          "targetNodeId": "n-monitor"
+        },
+        {
+          "id": "e-18",
+          "label": "It posts but will not load Windows",
+          "targetNodeId": "n-boot-order"
+        }
+      ]
+    },
+    {
+      "id": "n-monitor",
+      "title": "Check the monitor, its cable and its input",
+      "body": "Confirm the monitor has its own power and is set to the input the cable is plugged into. Reseat the cable at both ends, then try a different cable or a different port on the PC.",
+      "snippets": [
+        {
+          "id": "s-4",
+          "label": "Ticket note",
+          "text": "PC powers on with no display output. Confirmed monitor power and input source, reseated video cable at both ends and retested with a known-good cable."
+        }
+      ],
+      "answers": [
+        {
+          "id": "e-19",
+          "label": "The display works now",
+          "targetNodeId": "n-resolved-display"
+        },
+        {
+          "id": "e-20",
+          "label": "Still black",
+          "targetNodeId": "n-onboard-gpu"
+        }
+      ]
+    },
+    {
+      "id": "n-onboard-gpu",
+      "title": "Try the motherboard's video port",
+      "body": "If the PC has a separate graphics card, shut down, unplug the monitor from the card and connect it to the port on the motherboard instead.",
+      "answers": [
+        {
+          "id": "e-21",
+          "label": "Display works on the onboard port",
+          "targetNodeId": "n-resolved-gpu"
+        },
+        {
+          "id": "e-22",
+          "label": "Still nothing on either port",
+          "targetNodeId": "n-escalate-display"
+        }
+      ]
+    },
+    {
+      "id": "n-boot-order",
+      "title": "What does it show instead of Windows?",
+      "body": "Read the exact message on screen. This is the one detail tier 2 will ask for, so capture the wording rather than paraphrasing it.",
+      "answers": [
+        {
+          "id": "e-23",
+          "label": "\"No bootable device\"",
+          "targetNodeId": "n-boot-usb"
+        },
+        {
+          "id": "e-24",
+          "label": "Windows repair or recovery loop",
+          "targetNodeId": "n-escalate-sw"
+        }
+      ]
+    },
+    {
+      "id": "n-boot-usb",
+      "title": "Remove USB drives and check the boot order",
+      "body": "Unplug every USB stick and external drive, then restart. If it still fails, enter the BIOS and confirm the internal drive is listed first in the boot order.",
+      "snippets": [
+        {
+          "id": "s-5",
+          "label": "Ticket note",
+          "text": "POST completes but reports no bootable device. Removed all external USB media and verified the internal system drive is present and first in the BIOS boot order."
+        }
+      ],
+      "answers": [
+        {
+          "id": "e-25",
+          "label": "It boots now",
+          "targetNodeId": "n-resolved-boot"
+        },
+        {
+          "id": "e-26",
+          "label": "The drive is not listed at all",
+          "targetNodeId": "n-escalate-sw"
+        }
+      ]
+    },
+    {
+      "id": "n-resolved-boots",
+      "title": "Resolved — powers on and boots",
+      "body": "Confirm the user reaches their desktop and can sign in before closing.",
+      "snippets": [
+        {
+          "id": "s-6",
+          "label": "Closing note",
+          "text": "Power fault resolved on site. PC powers on, completes POST and boots to Windows. User confirmed they can sign in and work normally. Closing ticket."
+        }
+      ],
+      "answers": []
+    },
+    {
+      "id": "n-resolved-ram",
+      "title": "Resolved — memory reseated",
+      "body": "Worth telling the user this can recur if the machine is moved or knocked.",
+      "snippets": [
+        {
+          "id": "s-7",
+          "label": "Closing note",
+          "text": "Fault traced to a poorly seated memory module. Reseated all DIMMs; PC now completes POST and boots normally with no beep codes. Closing ticket."
+        },
+        {
+          "id": "s-8",
+          "label": "Advice for the user",
+          "text": "This was caused by a memory module working loose in its slot. If the machine gets knocked or moved to a new desk and the same beeping returns, raise a ticket rather than restarting repeatedly."
+        }
+      ],
+      "answers": []
+    },
+    {
+      "id": "n-resolved-display",
+      "title": "Resolved — monitor connection",
+      "body": "Note which part was actually at fault, so a repeat ticket is not diagnosed from scratch.",
+      "snippets": [
+        {
+          "id": "s-9",
+          "label": "Closing note",
+          "text": "No display traced to the monitor connection rather than the PC. Corrected the input source and replaced the video cable. Display output confirmed stable. Closing ticket."
+        }
+      ],
+      "answers": []
+    },
+    {
+      "id": "n-resolved-gpu",
+      "title": "Graphics card fault — arrange a replacement",
+      "body": "The PC is usable on the onboard port in the meantime, so ask whether the user needs it back today.",
+      "snippets": [
+        {
+          "id": "s-10",
+          "label": "Ticket note",
+          "text": "No output from the graphics card on any port; display works normally from the motherboard's onboard output. Card diagnosed faulty and a replacement requested."
+        },
+        {
+          "id": "s-11",
+          "label": "Message to the user",
+          "text": "Your PC is working again, but it is running on the motherboard's built-in graphics while we replace the faulty graphics card. You may notice fewer display outputs until the replacement is fitted."
+        }
+      ],
+      "answers": []
+    },
+    {
+      "id": "n-resolved-boot",
+      "title": "Resolved — boot order",
+      "body": "Usually a USB stick left plugged in. Mention it, or it will happen again next week.",
+      "snippets": [
+        {
+          "id": "s-12",
+          "label": "Closing note",
+          "text": "PC failed to boot because it was attempting to start from attached USB media. Removed the device and confirmed the internal drive is first in the boot order. Boots normally. Closing ticket."
+        }
+      ],
+      "answers": []
+    },
+    {
+      "id": "n-escalate-hw",
+      "title": "Escalate — hardware dispatch",
+      "body": "Raise to tier 2 with everything already ruled out, so the visit is not spent repeating it.",
+      "snippets": [
+        {
+          "id": "s-13",
+          "label": "Escalation summary",
+          "text": "PC does not power on or stay powered. Ruled out: mains lead and wall outlet, PSU rocker switch and voltage selector, thermal shutdown from blocked airflow, and memory seating. No POST achieved. Escalating for hardware dispatch — suspect PSU or motherboard."
+        }
+      ],
+      "answers": []
+    },
+    {
+      "id": "n-escalate-display",
+      "title": "Escalate — no output on any port",
+      "body": "Both the card and the onboard port are dead, which points past the graphics card.",
+      "snippets": [
+        {
+          "id": "s-14",
+          "label": "Escalation summary",
+          "text": "PC powers on and fans spin but produces no video on either the graphics card or the onboard output. Ruled out: monitor power, input source, video cable and port. No POST beeps heard. Escalating for hardware diagnosis — suspect motherboard or CPU."
+        }
+      ],
+      "answers": []
+    },
+    {
+      "id": "n-escalate-sw",
+      "title": "Escalate — OS rebuild or drive fault",
+      "body": "Ask about unsaved local data before handing over. A rebuild is the likely outcome.",
+      "snippets": [
+        {
+          "id": "s-15",
+          "label": "Escalation summary",
+          "text": "PC completes POST but will not load Windows. Ruled out: attached USB media and BIOS boot order. Escalating to tier 2 for OS repair or rebuild — internal drive may have failed."
+        },
+        {
+          "id": "s-16",
+          "label": "Question for the user",
+          "text": "Before this is passed on: is there anything saved only on this machine rather than on OneDrive or a network drive? Repairing it may mean rebuilding the PC, and anything stored locally would be lost."
+        }
+      ],
+      "answers": []
+    }
+  ]
+}
