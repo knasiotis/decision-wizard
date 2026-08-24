@@ -1,6 +1,8 @@
 package com.knasiotis.decisionwizard.ui.chats
 
 import android.text.format.DateUtils
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -21,10 +23,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +56,22 @@ fun ChatsScreen(
     modifier: Modifier = Modifier
 ) {
     val chats by viewModel.chats.collectAsStateWithLifecycle()
+    val exportRequest by viewModel.exportRequest.collectAsStateWithLifecycle()
+    val message by viewModel.message.collectAsStateWithLifecycle()
+    val snackbars = remember { SnackbarHostState() }
+
+    val saver = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri -> if (uri != null) viewModel.exportTo(uri) else viewModel.cancelExport() }
+
+    LaunchedEffect(exportRequest) { exportRequest?.let { saver.launch(it.fileName) } }
+
+    LaunchedEffect(message) {
+        message?.let {
+            snackbars.showSnackbar(it)
+            viewModel.clearMessage()
+        }
+    }
     val graphs by viewModel.graphs.collectAsStateWithLifecycle()
     var pendingDelete by remember { mutableStateOf<ChatSummary?>(null) }
     var picking by rememberSaveable { mutableStateOf(false) }
@@ -59,6 +80,7 @@ fun ChatsScreen(
 
     Scaffold(
         modifier = modifier,
+        snackbarHost = { SnackbarHost(snackbars) },
         topBar = {
             TopAppBar(title = { Text("Chats") })
         },
@@ -87,6 +109,7 @@ fun ChatsScreen(
                     ChatCard(
                         chat = chat,
                         onOpen = { onOpenChat(chat.sessionId) },
+                        onExport = { viewModel.askExport(chat) },
                         onDelete = { pendingDelete = chat }
                     )
                 }
@@ -243,7 +266,12 @@ private fun EmptyChats(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ChatCard(chat: ChatSummary, onOpen: () -> Unit, onDelete: () -> Unit) {
+private fun ChatCard(
+    chat: ChatSummary,
+    onOpen: () -> Unit,
+    onExport: () -> Unit,
+    onDelete: () -> Unit
+) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -305,6 +333,7 @@ private fun ChatCard(chat: ChatSummary, onOpen: () -> Unit, onDelete: () -> Unit
                         modifier = Modifier.padding(end = 8.dp)
                     )
                 }
+                TextButton(onClick = onExport) { Text("Export") }
                 TextButton(onClick = onDelete) { Text("Delete chat") }
             }
         }

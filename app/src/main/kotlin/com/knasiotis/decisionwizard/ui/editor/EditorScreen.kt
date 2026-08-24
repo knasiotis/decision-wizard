@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
@@ -22,6 +23,8 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FabPosition
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -167,6 +170,21 @@ fun EditorScreen(
     Scaffold(
         modifier = modifier,
         snackbarHost = { SnackbarHost(snackbars) },
+        // Bottom left, so it does not sit under the hand reaching for the
+        // canvas, and away from the undo pair it is not part of.
+        floatingActionButtonPosition = FabPosition.Start,
+        floatingActionButton = {
+            // Only offered when there is something to save; a button that does
+            // nothing is worse than no button.
+            if (ui.dirty) {
+                FloatingActionButton(onClick = viewModel::save) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_save),
+                        contentDescription = "Save this graph"
+                    )
+                }
+            }
+        },
         topBar = {
             TopAppBar(
                 title = {
@@ -191,9 +209,24 @@ fun EditorScreen(
                 },
                 navigationIcon = { TextButton(onClick = { leave() }) { Text("Back") } },
                 actions = {
-                    TextButton(onClick = viewModel::undo, enabled = ui.canUndo) { Text("Undo") }
-                    TextButton(onClick = viewModel::redo, enabled = ui.canRedo) { Text("Redo") }
-                    TextButton(onClick = viewModel::save, enabled = ui.dirty) { Text("Save") }
+                    TextButton(onClick = viewModel::undo, enabled = ui.canUndo) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_undo),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("Undo")
+                    }
+                    TextButton(onClick = viewModel::redo, enabled = ui.canRedo) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_redo),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("Redo")
+                    }
                 }
             )
         }

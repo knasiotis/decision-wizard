@@ -4,7 +4,7 @@
 
 The icons in `app/src/main/res/drawable/ic_*.xml` are traced from
 [Lucide](https://lucide.dev) (`plus`, `settings`, `git-branch`,
-`message-square`, `wrench`, `pencil`), converted to Android vector drawables.
+`message-square`, `wrench`, `pencil`, `undo-2`, `redo-2`, `save`), converted to Android vector drawables.
 
 `ic_chats.xml` composes two of them — `message-square` with `wrench` scaled
 inside it — because no single Lucide icon carries both.
