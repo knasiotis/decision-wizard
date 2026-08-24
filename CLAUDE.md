@@ -695,8 +695,10 @@ way to know a regression test regresses anything.
 
 ### A jump has to arrive at the node
 
-Fixed four times. The first three were all the same mistake wearing different
-clothes, so the shape of it matters more than any of the fixes.
+Fixed four times, and **the fourth is confirmed working on a device** — the
+measured version below is the one that holds. The first three were all the same
+mistake wearing different clothes, so the shape of it matters more than any of
+the fixes.
 
 **Symptom:** tapping a stub chip moved the canvas without landing on the node it
 had just flashed, usually dragging the graph off to the left.
@@ -1051,27 +1053,22 @@ recomposition is driven from `:app` and the core stays pure.
 
 ## Current state
 
-**Everything through v0.5 is done, merged and released.** `main` carries the
-work and the tags; the last published build is `v0.5.5` (versionCode 33).
-`:graphcore` is green at **103** tests. `README.md` has been rewritten and is
-current.
+**Everything through v0.5.10 is released.** `main` carries the work and the tags;
+the last published build is **v0.5.10** (versionCode 510), signed with the
+expected key. `:graphcore` is green at **112** tests. `README.md` is current.
 
-**v0.5.6 is released** — canvas fixes plus the F-Droid packaging, which took no
-version of its own. The published APK is versionCode 506, signed with the
-expected key, and its GitHub notes came from `release-notes/v0.5.6.md`, so the
-`--notes-file` path is proven.
+The v0.5.6–v0.5.10 run, in short:
 
-**v0.5.7 is released** — two editor fixes. Its notes published clean, so the
-comment stripping is proven as well as the `--notes-file` path. One of those two
-fixes was wrong, which is what v0.5.8 is.
+| Tag | What it was |
+|---|---|
+| v0.5.6 | Canvas fixes, plus the F-Droid packaging riding along with no version of its own |
+| v0.5.7 | Two editor fixes, one of which was wrong |
+| v0.5.8 | Stub-jump attempt, branches drawn apart, chat back arrow |
+| v0.5.9 | Stub-jump attempt |
+| v0.5.10 | Stub jump **fixed, and confirmed working on a device** |
 
-**v0.5.8 is released**, and the stub jump was still reported wrong on a device
-afterwards — see the zero-viewport note above, which v0.5.9 guards against.
-
-Previously, the tree was on v0.5.8: the stub-chip jump done properly, branches
-drawn apart from each other, and the chat back arrow that had been sitting
-unversioned on `main`. `appVersionName=0.5.8` gives versionCode **508**, with
-`changelogs/508.txt` and `fdroid/…yml` agreeing.
+Both halves of the release pipeline are proven: notes come from
+`release-notes/<tag>.md`, and the template comment is stripped before publishing.
 
 **v0.6.0 is search and is being built in a separate session**, so do not assume
 the tree is yours and do not take that number.
