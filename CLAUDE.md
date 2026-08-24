@@ -589,8 +589,11 @@ debug build is fine.
 
 - **`01-chat.jpg` — present.** A chat mid-walk on the demo graph. It is a JPEG;
   F-Droid accepts `png`, `jpg` and `jpeg` equally.
-- **`02-canvas` — still missing.** The editor, showing a branch and the stub
-  chips on the cycle.
+- **`02-canvas` — deliberately post-release.** The editor, showing a branch and
+  the stub chips on the cycle. It waits for v0.5.6 to ship because v0.5.6 is what
+  fixes the edge routing — a canvas shot taken before it would show edges running
+  behind the nodes they pass, and would be the one image advertising a bug that
+  is already fixed. It lands in the tag after this one.
 
 The chat one leads because F-Droid's carousel shows the first file first. A
 node-sheet shot and a library shot were considered and dropped: they show chrome
@@ -938,9 +941,10 @@ the tree is yours and do not take that number.
 Also outstanding:
 
 1. **Tag v0.5.6** — push `main`, then the tag. That is the whole release.
-2. **The canvas screenshot**, which must land *inside* a tag to reach F-Droid —
-   see "Screenshots must be inside the tag" above. The chat one is in; a re-take
-   showing a snippet and its copy button would be better than what is there.
+2. **The canvas screenshot**, taken from the released v0.5.6 build so it shows
+   the fixed edge routing, and committed *before* the next tag — F-Droid reads
+   metadata from the tagged tree, not from `main`. A re-take of the chat shot
+   showing a snippet and its copy button would also be an improvement.
 3. **The fdroiddata merge request**. `commit:` currently points at `v0.5.6`,
    which carries the chat shot only.
 4. **v0.6** — search, in the other session. See the build order above.
