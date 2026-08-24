@@ -72,6 +72,23 @@ class ViewportTest {
         assertTrue(left > right, "a node further right needs a smaller pan")
     }
 
+    /**
+     * A viewport of zero has no middle, and [centreOn] cannot say so — it
+     * returns the pan that puts the node at screen x = 0, which drags the whole
+     * canvas off to the left. That is precisely what a jump taken before the
+     * canvas has been measured looks like, so the editor checks the size first
+     * and holds the request rather than moving on a guess.
+     */
+    @Test
+    fun `an unmeasured viewport has no middle to centre on`() {
+        val pan = centreOn(912f, extent = 0f, scale = 1f, density = 2.75f)
+        assertTrue(pan < 0f, "the pan runs negative, dragging the canvas left")
+        assertTrue(
+            abs(onScreen(912f, pan, 1f, 2.75f)) < 0.01f,
+            "the node lands on the left edge rather than in any middle"
+        )
+    }
+
     /** Zoom is an input, never something this changes on the caller's behalf. */
     @Test
     fun `two zoom levels centre the same node at different pans`() {

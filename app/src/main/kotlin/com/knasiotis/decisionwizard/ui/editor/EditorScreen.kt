@@ -105,6 +105,13 @@ fun EditorScreen(
 
     // Where the canvas is gliding to, if anywhere.
     var target by remember { mutableStateOf<Offset?>(null) }
+
+    // A node a jump asked for before the canvas had been measured. Centring
+    // against a zero-width viewport puts the node at screen x = 0 rather than in
+    // the middle, which throws the whole graph off to the left — exactly what a
+    // broken jump looks like. Hold the request instead and honour it the moment
+    // a real size arrives.
+    var pendingFocus by remember { mutableStateOf<String?>(null) }
     val density = LocalDensity.current.density
 
     // Measured bubble heights, in dp. LayoutEngine assumes 64 for every node
@@ -150,12 +157,35 @@ fun EditorScreen(
         scale = next
     }
 
-    fun lookAt(nodeId: String, remember: Boolean) {
-        val current = layout ?: return
-        val position = current.positions[nodeId] ?: return
+    /**
+     * The pan that puts [nodeId] in the middle, or null if that cannot be worked
+     * out yet — no layout, no such node, or a canvas that has not been measured.
+     */
+    fun panFor(nodeId: String): Offset? {
+        val current = layout ?: return null
+        val position = current.positions[nodeId] ?: return null
+        if (viewport.width <= 0 || viewport.height <= 0) return null
         // The measured height, so a tall bubble is centred on itself rather
         // than on where its first 64dp happen to be.
         val height = heights[nodeId] ?: NODE_HEIGHT
+        return Offset(
+            Viewport.centreOn(
+                position.x + NODE_WIDTH / 2, viewport.width.toFloat(), scale, density
+            ),
+            Viewport.centreOn(
+                position.y + height / 2, viewport.height.toFloat(), scale, density
+            )
+        )
+    }
+
+    fun lookAt(nodeId: String, remember: Boolean) {
+        val destination = panFor(nodeId)
+        if (destination == null) {
+            // Never move on a guess. Moving to a wrong place reads as a broken
+            // jump; waiting a frame reads as nothing at all.
+            pendingFocus = nodeId
+            return
+        }
         if (remember) cameFrom.add(pan)
         // Pin the node to the middle of the screen, and do nothing else. `scale`
         // is read and never written, so the zoom the user set is preserved.
@@ -166,16 +196,18 @@ fun EditorScreen(
         // cannot be centred *and* leave the whole graph visible, so the
         // containment rule always won. A centred node is on screen by
         // construction, which is all this has to guarantee.
-        target = Offset(
-            Viewport.centreOn(
-                position.x + NODE_WIDTH / 2, viewport.width.toFloat(), scale, density
-            ),
-            Viewport.centreOn(
-                position.y + height / 2, viewport.height.toFloat(), scale, density
-            )
-        )
+        target = destination
         focused = nodeId
         focusKey++
+    }
+
+    // A jump that arrived before the canvas was measured, honoured as soon as it
+    // is. Also re-centres if the viewport changes underneath a pending one.
+    LaunchedEffect(viewport, layout) {
+        val waiting = pendingFocus ?: return@LaunchedEffect
+        if (panFor(waiting) == null) return@LaunchedEffect
+        pendingFocus = null
+        lookAt(waiting, remember = false)
     }
 
     // Glide rather than jump, so it is obvious the canvas moved rather than
