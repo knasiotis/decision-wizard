@@ -580,22 +580,30 @@ Changelog files are named after the **versionCode**, not the version name —
   `android-33`, which looks alarming, but SDK downloading is not disabled and AGP
   fetches the missing platform itself.
 
-### Screenshots are the remaining gap
+### Screenshots
 
-`fastlane/metadata/android/en-US/images/phoneScreenshots/` is empty and F-Droid
-wants it filled. They cannot be produced from this machine — there is no emulator
-and no system image installed, only `platform-tools`. They have to come off a
-real device, via `adb exec-out screencap -p > shot.png`.
+They cannot be produced from this machine — there is no emulator and no system
+image installed, only `platform-tools`. They come off a real device, via
+`adb exec-out screencap -p > shot.png`, and the signing key does not matter, so a
+debug build is fine.
 
-Two shots, in this order, as listed in `README.md`: **`01-chat.png`** — a chat
-mid-flow, showing a question, its answer chips and a snippet with the copy
-button — and **`02-canvas.png`** — the editor, showing a branch and the stub
-chips on the cycle. The chat one goes first because F-Droid's carousel leads with
-it. A node-sheet shot and a library shot were considered and dropped: they show
-chrome rather than the idea.
+- **`01-chat.jpg` — present.** A chat mid-walk on the demo graph. It is a JPEG;
+  F-Droid accepts `png`, `jpg` and `jpeg` equally.
+- **`02-canvas` — still missing.** The editor, showing a branch and the stub
+  chips on the cycle.
 
-Filenames are `sorted()` by F-Droid, so keep the numeric prefix and zero-pad if a
-third is ever added.
+The chat one leads because F-Droid's carousel shows the first file first. A
+node-sheet shot and a library shot were considered and dropped: they show chrome
+rather than the idea.
+
+**Filenames are `sorted()` by F-Droid**, so keep the numeric prefix — without it
+`canvas` would sort ahead of `chat` and silently steal the lead position. Zero-pad
+if a third is ever added.
+
+Note the current chat shot does **not** show a snippet and its copy button, which
+is the one thing that distinguishes this app from any other flowchart. Worth
+re-taking further down a branch that has one — `n-power-cable` and `n-monitor`
+both carry a ticket note.
 
 **`samples/pc-wont-turn-on.dwiz` exists to be the graph in those shots.** It is a
 desk-side "PC won't turn on" flow — 20 nodes, 8 resolutions, 16 snippets — and it
@@ -632,7 +640,8 @@ them before tagging** rather than after.
 
 Consequences for the submission:
 
-- v0.5.6 is being tagged without screenshots. Its F-Droid listing will have none.
+- v0.5.6 carries `01-chat.jpg`, so its listing has one screenshot. The canvas
+  shot has to be in whatever tag comes next, not added to `main` afterwards.
 - The fdroiddata merge request should point `commit:` at **the first tag that
   contains the screenshots**, not necessarily at v0.5.6.
 - The alternative, if a listing is wanted sooner, is putting the images directly
@@ -929,11 +938,11 @@ the tree is yours and do not take that number.
 Also outstanding:
 
 1. **Tag v0.5.6** — push `main`, then the tag. That is the whole release.
-2. **Screenshots**, which must land *inside* a tag to reach F-Droid — see
-   "Screenshots must be inside the tag" above. Take them off a debug build,
-   commit them, and tag.
-3. **The fdroiddata merge request**, pointing `commit:` at the first tag that
-   has the screenshots.
+2. **The canvas screenshot**, which must land *inside* a tag to reach F-Droid —
+   see "Screenshots must be inside the tag" above. The chat one is in; a re-take
+   showing a snippet and its copy button would be better than what is there.
+3. **The fdroiddata merge request**. `commit:` currently points at `v0.5.6`,
+   which carries the chat shot only.
 4. **v0.6** — search, in the other session. See the build order above.
 5. **Consider raising `targetSdk` to 37** during a device test pass. Nothing
    needs it; there is no Play Store deadline since distribution is Obtainium.

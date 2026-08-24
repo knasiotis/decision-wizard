@@ -90,11 +90,13 @@ half-built branches are all legal — the app warns, it does not refuse.
 
 ## Screenshots 📸
 
-Not included yet. Two, in this order:
+<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/01-chat.jpg" width="280">
 
-1. **A chat mid-flow** — a question, its answer buttons, and a snippet with the
-   copy button. This is the one that explains the app.
-2. **The canvas** — a flow with a branch and a cycle, showing the stub chips.
+A flow mid-walk: each question with its answer buttons, and the branch already
+taken kept above it as a record.
+
+Still to add: **the canvas** — a flow with a branch and a cycle, showing the stub
+chips.
 
 ## Building 🔨
 
