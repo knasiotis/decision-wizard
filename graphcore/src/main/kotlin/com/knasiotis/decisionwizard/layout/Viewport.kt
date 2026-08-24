@@ -1,42 +1,36 @@
 package com.knasiotis.decisionwizard.layout
 
 /**
- * Where the canvas may sit, given where it is being asked to sit.
+ * Where the canvas has to sit to put something in the middle of the screen.
  *
- * Pure arithmetic on one axis, kept here rather than in the editor so it can be
- * tested without a device. The editor calls it once per axis.
+ * Pure arithmetic, kept here rather than in the editor so it can be tested
+ * without a device. The editor calls it once per axis.
  */
 object Viewport {
 
     /**
-     * The pan closest to [want] that still keeps the canvas on screen.
+     * The pan that puts [contentCentre] at the middle of a viewport [extent]
+     * across.
      *
-     * A point is drawn at `content * scale + pan`, so panning is what decides
-     * which part of the canvas is visible. [content] and [extent] are both in
-     * the same units — pixels, in the editor's case — and [margin] is the strip
-     * of breathing room left at the edge.
+     * A point is drawn at `content * scale * density + pan`, so this is that
+     * solved for the pan which lands [contentCentre] on `extent / 2`.
      *
-     * Content smaller than the viewport is held inside it; content larger is
-     * held covering it. Either way the answer is a **range**, and [want]
-     * survives as far as that range allows.
+     * **Nothing is clamped, and that is deliberate.** Two earlier versions tried
+     * to keep the whole canvas on screen at the same time — first by centring
+     * the canvas whenever it fitted, then by clamping the pan into the range
+     * that kept it covering the viewport. Both fight this: a node near the edge
+     * of a large graph cannot be in the middle of the screen *and* have the rest
+     * of the graph on screen, so any containment rule wins the argument and the
+     * jump stops short of the node it just flashed.
      *
-     * That last part is the whole point. Staying on screen is a constraint on
-     * the answer, not the answer itself: an earlier version returned the pan
-     * that centred the whole canvas whenever the canvas fitted, which threw
-     * [want] away entirely. Tapping a stub chip then slid the canvas sideways
-     * and stopped somewhere that was not the node it had just flashed —
-     * reliably so once zoomed out far enough for the width to fit.
+     * A centred node is on screen by construction, which is the only thing the
+     * jump actually has to guarantee. The rest of the canvas running off the
+     * edges is what panning is for.
      */
-    fun clampPan(want: Float, content: Float, extent: Float, margin: Float): Float {
-        val low: Float
-        val high: Float
-        if (content + margin * 2 <= extent) {
-            low = margin
-            high = extent - content - margin
-        } else {
-            low = extent - content - margin
-            high = margin
-        }
-        return want.coerceIn(low, high)
-    }
+    fun centreOn(contentCentre: Float, extent: Float, scale: Float, density: Float): Float =
+        extent / 2f - contentCentre * scale * density
+
+    /** Where a content coordinate lands on screen under [pan]. */
+    fun onScreen(content: Float, pan: Float, scale: Float, density: Float): Float =
+        content * scale * density + pan
 }

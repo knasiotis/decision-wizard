@@ -1,93 +1,84 @@
 package com.knasiotis.decisionwizard
 
-import com.knasiotis.decisionwizard.layout.Viewport.clampPan
+import com.knasiotis.decisionwizard.layout.Viewport.centreOn
+import com.knasiotis.decisionwizard.layout.Viewport.onScreen
+import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 class ViewportTest {
 
-    private val margin = 24f
-
-    /**
-     * The regression that matters. A stub chip asks to centre a node; the reply
-     * has to depend on which node was asked for. The version this replaced
-     * returned the pan that centred the whole canvas whenever the canvas fitted
-     * the viewport, so every jump on a zoomed-out graph produced the same
-     * sideways slide and never arrived at the node it had flashed.
-     */
-    @Test
-    fun `a canvas that fits still moves towards the node it was asked for`() {
-        val content = 400f
-        val extent = 1000f
-
-        val left = clampPan(want = -50f, content = content, extent = extent, margin = margin)
-        val right = clampPan(want = 500f, content = content, extent = extent, margin = margin)
-
-        assertNotEquals(left, right, "the answer has to depend on what was asked for")
-        assertTrue(left < right, "asking to move right must not move left")
-    }
-
-    @Test
-    fun `a wanted pan inside the range is left alone`() {
-        assertEquals(
-            300f,
-            clampPan(want = 300f, content = 400f, extent = 1000f, margin = margin)
+    private fun assertCentred(centre: Float, extent: Float, scale: Float, density: Float) {
+        val pan = centreOn(centre, extent, scale, density)
+        val landed = onScreen(centre, pan, scale, density)
+        assertTrue(
+            abs(landed - extent / 2f) < 0.01f,
+            "centre $centre at scale $scale landed on $landed, wanted ${extent / 2f}"
         )
     }
 
     @Test
-    fun `a canvas smaller than the viewport is kept fully inside it`() {
-        val content = 400f
-        val extent = 1000f
-
-        listOf(-9000f, -1f, 0f, 500f, 9000f).forEach { want ->
-            val pan = clampPan(want, content, extent, margin)
-            assertTrue(pan >= margin, "left edge left the screen at want=$want (pan=$pan)")
-            assertTrue(
-                pan + content <= extent - margin,
-                "right edge left the screen at want=$want (pan=$pan)"
-            )
+    fun `the node lands in the middle whatever the zoom`() {
+        listOf(0.25f, 0.5f, 1f, 1.7f, 3f).forEach { scale ->
+            assertCentred(centre = 912f, extent = 1080f, scale = scale, density = 2.75f)
         }
     }
 
     @Test
-    fun `a canvas larger than the viewport is kept covering it`() {
-        val content = 5000f
-        val extent = 1000f
-
-        listOf(-9000f, -2500f, 0f, 9000f).forEach { want ->
-            val pan = clampPan(want, content, extent, margin)
-            assertTrue(pan <= margin, "a gap opened on the left at want=$want (pan=$pan)")
-            assertTrue(
-                pan + content >= extent - margin,
-                "a gap opened on the right at want=$want (pan=$pan)"
-            )
+    fun `the node lands in the middle whatever the screen density`() {
+        listOf(1f, 2f, 2.75f, 3.5f).forEach { density ->
+            assertCentred(centre = 912f, extent = 1080f, scale = 1f, density = density)
         }
     }
 
     /**
-     * Zooming out shrinks the content, which is exactly when the old bug showed
-     * itself: the axis flips from "larger than the viewport" to "smaller", and
-     * that is where the wanted pan used to stop being consulted.
+     * The regression that keeps coming back. Two earlier versions clamped the
+     * pan to keep the whole canvas on screen, and a node near the edge of a
+     * large graph cannot be centred *and* leave the graph visible — so the
+     * clamp won and the jump stopped short of the node it had just flashed.
+     *
+     * Being off centre is the failure. The canvas hanging off the edges is not.
      */
     @Test
-    fun `crossing from larger than the viewport to smaller keeps honouring the want`() {
-        val extent = 1000f
-        val want = 120f
+    fun `a node at the far edge of a big canvas is still centred`() {
+        val extent = 1080f
+        val density = 2.75f
 
-        val zoomedIn = clampPan(want, content = 5000f, extent = extent, margin = margin)
-        val zoomedOut = clampPan(want, content = 400f, extent = extent, margin = margin)
+        // Far right of a canvas much wider than the screen.
+        assertCentred(centre = 3000f, extent = extent, scale = 1f, density = density)
+        // Far left, where the canvas runs off the right instead.
+        assertCentred(centre = 20f, extent = extent, scale = 1f, density = density)
 
-        assertEquals(margin, zoomedIn, "clamped to the left bound while overflowing")
-        assertEquals(want, zoomedOut, "inside the range once it fits, so untouched")
+        // And the pan is allowed to put the canvas origin off screen either way.
+        val farRight = centreOn(3000f, extent, 1f, density)
+        val farLeft = centreOn(20f, extent, 1f, density)
+        assertTrue(farRight < 0f, "a far node must be reachable by panning past 0")
+        assertTrue(farLeft > 0f, "a near node must be reachable by panning past 0 the other way")
     }
 
-    /** The bounds meet rather than cross when content is exactly viewport-sized. */
+    /**
+     * A canvas smaller than the screen is the case the first version special
+     * cased, centring the whole canvas and ignoring which node had been asked
+     * for. Every jump then produced the same movement.
+     */
     @Test
-    fun `content the same size as the viewport does not invert its bounds`() {
-        val pan = clampPan(want = 999f, content = 1000f, extent = 1000f, margin = margin)
-        assertEquals(margin, pan)
+    fun `a canvas smaller than the screen still moves to the node asked for`() {
+        val extent = 1080f
+        val left = centreOn(50f, extent, 0.3f, 2.75f)
+        val right = centreOn(350f, extent, 0.3f, 2.75f)
+
+        assertNotEquals(left, right, "the answer has to depend on which node was asked for")
+        assertTrue(left > right, "a node further right needs a smaller pan")
+    }
+
+    /** Zoom is an input, never something this changes on the caller's behalf. */
+    @Test
+    fun `two zoom levels centre the same node at different pans`() {
+        val a = centreOn(912f, 1080f, 1f, 2.75f)
+        val b = centreOn(912f, 1080f, 0.5f, 2.75f)
+        assertNotEquals(a, b)
+        assertCentred(912f, 1080f, 1f, 2.75f)
+        assertCentred(912f, 1080f, 0.5f, 2.75f)
     }
 }

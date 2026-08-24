@@ -150,33 +150,6 @@ fun EditorScreen(
         scale = next
     }
 
-    /**
-     * Clamps a wanted pan to the ones that keep the canvas on screen, and
-     * otherwise leaves it alone.
-     *
-     * This used to centre the whole graph on any axis the graph fitted on,
-     * throwing the wanted pan away. That is what made a stub chip slide the
-     * canvas sideways and stop somewhere that was not the node it had just
-     * flashed: zoom out far enough for the width to fit and every jump
-     * re-centred the graph horizontally, whichever node had been asked for.
-     * Keeping the canvas on screen is a constraint on the answer, not the
-     * answer itself.
-     */
-    fun keepInView(wanted: Offset, of: GraphLayout): Offset {
-        val margin = 24f * density
-        // The arithmetic lives in :graphcore so it can be tested on the JVM.
-        // This bug has now been fixed twice; a third time should fail a test
-        // rather than a screenshot.
-        return Offset(
-            Viewport.clampPan(
-                wanted.x, of.width * scale * density, viewport.width.toFloat(), margin
-            ),
-            Viewport.clampPan(
-                wanted.y, of.height * scale * density, viewport.height.toFloat(), margin
-            )
-        )
-    }
-
     fun lookAt(nodeId: String, remember: Boolean) {
         val current = layout ?: return
         val position = current.positions[nodeId] ?: return
@@ -184,14 +157,22 @@ fun EditorScreen(
         // than on where its first 64dp happen to be.
         val height = heights[nodeId] ?: NODE_HEIGHT
         if (remember) cameFrom.add(pan)
-        // Centre the node: a point on screen is content * scale + pan, so this
-        // is that solved for pan.
-        target = keepInView(
-            Offset(
-                viewport.width / 2f - (position.x + NODE_WIDTH / 2) * scale * density,
-                viewport.height / 2f - (position.y + height / 2) * scale * density
+        // Pin the node to the middle of the screen, and do nothing else. `scale`
+        // is read and never written, so the zoom the user set is preserved.
+        //
+        // Nothing is clamped to keep the rest of the canvas on screen. Two
+        // earlier attempts did, and that is what kept these jumps landing short
+        // of the node they had just flashed: a node near the edge of a big graph
+        // cannot be centred *and* leave the whole graph visible, so the
+        // containment rule always won. A centred node is on screen by
+        // construction, which is all this has to guarantee.
+        target = Offset(
+            Viewport.centreOn(
+                position.x + NODE_WIDTH / 2, viewport.width.toFloat(), scale, density
             ),
-            current
+            Viewport.centreOn(
+                position.y + height / 2, viewport.height.toFloat(), scale, density
+            )
         )
         focused = nodeId
         focusKey++
