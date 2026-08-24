@@ -527,9 +527,17 @@ private fun NodeBubble(
 
     // Swells and settles once when pointed at. Arriving somewhere on a large
     // canvas is otherwise indistinguishable from having been there all along.
+    //
+    // Every way of being pointed at runs through this: a stub chip, an undo and
+    // a redo all call lookAt, which is the only thing that sets focused.
     val pulse = remember { Animatable(1f) }
     LaunchedEffect(focusKey, focused) {
-        if (!focused) return@LaunchedEffect
+        if (!focused) {
+            // Focus moving to another node cancels this one's animation wherever
+            // it had got to, which would leave the bubble stuck mid-swell.
+            pulse.snapTo(1f)
+            return@LaunchedEffect
+        }
         pulse.animateTo(1.14f, tween(160))
         pulse.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
     }
