@@ -292,6 +292,72 @@ class LayoutEngineTest {
         }
     }
 
+    /**
+     * Every other height check here feeds in a flat 64, which is the one case
+     * that cannot go wrong: layers have level bottoms and a route through the
+     * band between them clears everything by construction. Real bubbles are as
+     * tall as their wrapped title, so a layer's bottom is ragged and a route
+     * computed for a short node can still run through a tall neighbour.
+     *
+     * Heights here vary with the title the way measured ones do, and the same
+     * heights are used for the crossing test, so the two cannot quietly
+     * disagree.
+     */
+    @Test
+    fun `edges clear the nodes they pass when bubbles differ in height`() {
+        listOf(Fixtures.example(), demoGraph()).forEach { graph ->
+            val heightOf = wrappedHeights(graph)
+            val layout = LayoutEngine.layout(graph, heightOf)
+
+            layout.edges.filter { it.kind == EdgeKind.ARROW }.forEach { edge ->
+                edge.route.zipWithNext { from, to ->
+                    layout.positions.forEach { (id, node) ->
+                        if (id == edge.sourceId || id == edge.targetId) return@forEach
+                        assertTrue(
+                            !crosses(from, to, node, heightOf(id)),
+                            "${graph.name}/${edge.answerId}: $from -> $to runs over $id"
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * A layer's nodes must not overlap the layer under it whatever their
+     * heights, or an edge drawn into the lower one arrives behind the upper.
+     */
+    @Test
+    fun `layers keep clear of each other when bubbles differ in height`() {
+        listOf(Fixtures.example(), demoGraph()).forEach { graph ->
+            val heightOf = wrappedHeights(graph)
+            val layout = LayoutEngine.layout(graph, heightOf)
+
+            layout.layers.zipWithNext { upper, lower ->
+                val deepest = upper.maxOf { layout.positions.getValue(it).y + heightOf(it) }
+                val highest = lower.minOf { layout.positions.getValue(it).y }
+                assertTrue(
+                    highest >= deepest,
+                    "${graph.name}: a layer starting at $highest overlaps one ending at $deepest"
+                )
+            }
+        }
+    }
+
+    /** Roughly one extra line per 24 characters, as a 200dp-wide bubble wraps. */
+    private fun wrappedHeights(graph: Graph): (String) -> Float = { id ->
+        val node = requireNotNull(graph.byId[id]) {
+            "layout asked for the height of unknown node id '$id'"
+        }
+        64f + (node.title.length / 24) * 20f
+    }
+
+    private fun demoGraph(): Graph = parseGraph(
+        checkNotNull(javaClass.getResourceAsStream("/pc-wont-turn-on.dwiz")) {
+            "pc-wont-turn-on.dwiz missing from test resources"
+        }.bufferedReader().readText()
+    )
+
     /** Does an axis-aligned segment pass over a node's box? */
     private fun crosses(from: Point, to: Point, node: Position, height: Float): Boolean {
         val left = node.x

@@ -411,17 +411,39 @@ private fun Canvas(
     // label is drawn on the line rather than left to be inferred from position.
     val measurer = rememberTextMeasurer()
     val labelStyle = MaterialTheme.typography.labelSmall.copy(color = labelColour)
-    val painted = remember(layout, labelStyle) {
+    val painted = remember(layout, labelStyle, density) {
+        // Labels are moved out of each other's way rather than left to pile up.
+        // Every edge leaving one layer runs along the same empty strip between
+        // it and the next, so their midpoints land at the same y and two labels
+        // whose x's are close print on top of each other.
+        val taken = mutableListOf<LabelBox>()
         layout.edges.mapNotNull { edge ->
             // Nothing is drawn for an answer with no child yet: a stub would put
             // "Yes" and "No" under a brand-new question before either branch
             // exists, which reads as structure that is not there. A STUB is a
             // pair of chips on the two bubbles and no line at all.
             if (edge.kind != EdgeKind.ARROW) return@mapNotNull null
+            val text = measurer.measure(edge.label, labelStyle)
+            val at = midpointOf(edge.route) ?: return@mapNotNull null
+
+            // Text is measured in pixels; routes are in dp.
+            val halfWidth = text.size.width / density / 2f
+            val height = text.size.height / density
+            val step = height + 3f
+
+            // Alternating above and below keeps the row centred on its line
+            // instead of drifting off the top of the band.
+            val candidates = listOf(0f, -step, step, -2 * step, 2 * step)
+            val box = candidates.firstNotNullOfOrNull { offset ->
+                LabelBox(at.x - halfWidth, at.x + halfWidth, at.y + offset - height / 2f, height)
+                    .takeIf { candidate -> taken.none(candidate::hits) }
+            } ?: LabelBox(at.x - halfWidth, at.x + halfWidth, at.y - height / 2f, height)
+            taken += box
+
             PaintedEdge(
                 route = edge.route,
-                text = measurer.measure(edge.label, labelStyle),
-                labelAt = midpointOf(edge.route) ?: return@mapNotNull null
+                text = text,
+                labelAt = Point(at.x, box.top + height / 2f)
             )
         }
     }
@@ -430,6 +452,12 @@ private fun Canvas(
         modifier = modifier.drawBehind {
             // Only edges and their labels are painted. Bubbles are real
             // composables, so they stay hit-testable at any zoom.
+            //
+            // Every line first, then every label. Drawing each edge's line and
+            // its label together meant a later edge's line was painted over an
+            // earlier edge's text — the plate only ever hid the line belonging
+            // to its own edge, and any line crossing that spot afterwards ran
+            // straight across the words.
             painted.forEach { edge ->
                 // Right angles, corner to corner. A straight line to a
                 // grandchild runs behind whichever node stands between them and
@@ -444,7 +472,9 @@ private fun Canvas(
                         cap = StrokeCap.Round
                     )
                 }
+            }
 
+            painted.forEach { edge ->
                 val mid = Offset(edge.labelAt.x.dp.toPx(), edge.labelAt.y.dp.toPx())
                 val size = edge.text.size
                 val topLeft = Offset(mid.x - size.width / 2f, mid.y - size.height / 2f)
@@ -507,6 +537,20 @@ private const val NODE_HEIGHT = 64f
 
 /** Breathing room under the last layer, so it is not flush with the edge. */
 private const val CANVAS_MARGIN = 48f
+
+/** A label's footprint in dp, so two of them can be kept off each other. */
+private data class LabelBox(
+    val left: Float,
+    val right: Float,
+    val top: Float,
+    val height: Float
+) {
+    private val bottom get() = top + height
+
+    fun hits(other: LabelBox): Boolean =
+        right > other.left && left < other.right &&
+            bottom > other.top && top < other.bottom
+}
 
 private data class PaintedEdge(
     /** Right-angled corners from the source's bottom to the target's top. */
