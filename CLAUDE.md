@@ -695,43 +695,44 @@ way to know a regression test regresses anything.
 
 ### A jump has to arrive at the node
 
-Fixed three times. The first two failed the same way, so the shape of the mistake
-matters more than either fix.
+Fixed four times. The first three were all the same mistake wearing different
+clothes, so the shape of it matters more than any of the fixes.
 
-**Symptom:** tapping a stub chip slid the canvas sideways and stopped somewhere
-that was not the node it had just flashed — sometimes pushing the graph off the
-screen entirely.
+**Symptom:** tapping a stub chip moved the canvas without landing on the node it
+had just flashed, usually dragging the graph off to the left.
 
-**Cause, both times:** the code tried to satisfy *two* rules at once — put the
-node in the middle, and keep the whole canvas on screen. **They contradict each
-other**, and the containment rule always won. A node near the edge of a graph
-larger than the screen cannot be centred *and* leave the rest of the graph
-visible. v0.5.6 centred the whole canvas whenever it fitted an axis, throwing the
-request away outright; v0.5.7 clamped the request into the range that kept the
-canvas covering the viewport, which is better but still refuses to centre exactly
-the nodes a user is most likely to jump to.
+**The three failed attempts** all *calculated* where the canvas should go, from
+the node's layout coordinates, the zoom and the screen density:
+`viewportExtent / 2 - centre * scale * density`.
 
-**Fix:** there is only one rule. `Viewport.centreOn` returns the pan that puts the
-node in the middle, nothing is clamped, and `scale` is read but never written so
-the zoom survives. **A centred node is on screen by construction** — that is the
-only guarantee a jump owes anyone. The canvas hanging off the edges is what
-panning is for.
+- v0.5.6 centred the whole canvas whenever it fitted an axis, discarding the
+  request outright.
+- v0.5.7 clamped the request into the range that kept the canvas covering the
+  viewport — better, and still refuses to centre exactly the nodes near an edge
+  that a user is most likely to jump to.
+- v0.5.9 removed the clamp and guarded a zero viewport. Still wrong on a device.
 
-`ViewportTest` asserts the node lands dead centre across zoom levels and
-densities, including at the far edges of a large canvas, which is where any
-reintroduced containment rule breaks first. **Do not add one back**, and do not
-move the arithmetic into `:app` — it is pure float maths, and being unreachable
-from a JVM test is why this took three attempts.
+**The formula was never the problem.** A probe over the real demo graph puts
+`n-ram` dead centre at 1x, 0.5x and 0.25x, and `ViewportTest` agreed at every
+zoom and density. Being *correct* was not enough, because being correct depended
+on the layout coordinates, the density, the zoom and the container's own offset
+all being what the caller believed at that instant. Something in that chain is
+not what it looks like, and no amount of checking the arithmetic finds it.
 
-**A fourth failure mode, and the one the arithmetic cannot defend against: a
-viewport of zero.** `centreOn` is told the screen width; given `0` it returns the
-pan that puts the node at screen x = 0, dragging the whole canvas off to the
-left. That is indistinguishable from the old bug, and it is what a jump taken
-before the canvas has been measured produces. The editor therefore asks `panFor`
-for a destination and only moves when it gets one, holding the request in
-`pendingFocus` and honouring it when a real size arrives. **Never centre against
-an unmeasured viewport** — moving to a wrong place reads as a broken jump, while
-waiting a frame reads as nothing at all.
+**The fix is to stop calculating and measure.** Every bubble reports where it
+actually landed via `onGloballyPositioned`, recorded together with the pan in
+force when the measurement was taken. A jump is then
+`panAtMeasure + (canvasCentre - nodeCentre)` — `Viewport.centreBy`.
+
+**There is no scale or density term in that sum**, because panning moves the
+screen one-for-one at any zoom. If the node is 900px left of the middle, the
+answer is 900px, and *why* it was there stops mattering. Recording the pan
+alongside the measurement is what makes a measurement taken under an older pan
+still exact rather than merely stale.
+
+**Do not reintroduce a computed position, and do not add a scale term to
+`centreBy`.** Four releases say it does not work, and the failure is invisible
+from the JVM: every calculated version passed its tests.
 
 ### Edges must be drawn under every label, not just their own
 

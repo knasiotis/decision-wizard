@@ -9,28 +9,34 @@ package com.knasiotis.decisionwizard.layout
 object Viewport {
 
     /**
-     * The pan that puts [contentCentre] at the middle of a viewport [extent]
-     * across.
+     * The pan that brings a node to the middle, worked out from **where it
+     * actually is on screen** rather than from where the layout says it ought to
+     * be.
      *
-     * A point is drawn at `content * scale * density + pan`, so this is that
-     * solved for the pan which lands [contentCentre] on `extent / 2`.
+     * [nodeCentre] and [viewportCentre] are measured positions in the same
+     * space, and [panAtMeasure] is the pan that was in force when they were
+     * measured. Panning moves the canvas one-for-one — a point is drawn at
+     * `content * scale + pan`, so adding `d` to the pan moves everything on
+     * screen by exactly `d`, whatever the zoom — which is what makes this a
+     * plain subtraction with no scale or density in it at all.
      *
-     * **Nothing is clamped, and that is deliberate.** Two earlier versions tried
-     * to keep the whole canvas on screen at the same time — first by centring
-     * the canvas whenever it fitted, then by clamping the pan into the range
-     * that kept it covering the viewport. Both fight this: a node near the edge
-     * of a large graph cannot be in the middle of the screen *and* have the rest
-     * of the graph on screen, so any containment rule wins the argument and the
-     * jump stops short of the node it just flashed.
+     * **That absence is the point.** Three releases tried to compute this
+     * position from the layout instead: `viewportExtent / 2 - centre * scale *
+     * density`. That formula is correct — a probe over the real demo graph puts
+     * the node dead centre at 1x, 0.5x and 0.25x — and it still did not work on
+     * a device, because being correct depends on the layout coordinates, the
+     * density, the zoom and the container's own offset all being what the caller
+     * believes at that instant. Any one of them being different by so much as a
+     * factor moves the canvas somewhere absurd.
      *
-     * A centred node is on screen by construction, which is the only thing the
-     * jump actually has to guarantee. The rest of the canvas running off the
-     * edges is what panning is for.
+     * Measuring has no such assumptions to get wrong. If the node is 900px left
+     * of the middle, the answer is 900px, and it does not matter why it was
+     * there.
      */
-    fun centreOn(contentCentre: Float, extent: Float, scale: Float, density: Float): Float =
-        extent / 2f - contentCentre * scale * density
+    fun centreBy(nodeCentre: Float, viewportCentre: Float, panAtMeasure: Float): Float =
+        panAtMeasure + (viewportCentre - nodeCentre)
 
-    /** Where a content coordinate lands on screen under [pan]. */
-    fun onScreen(content: Float, pan: Float, scale: Float, density: Float): Float =
-        content * scale * density + pan
+    /** Where a measured point ends up once [pan] replaces [panAtMeasure]. */
+    fun movedTo(nodeCentre: Float, panAtMeasure: Float, pan: Float): Float =
+        nodeCentre + (pan - panAtMeasure)
 }

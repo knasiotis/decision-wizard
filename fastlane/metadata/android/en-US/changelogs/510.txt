@@ -1,0 +1,11 @@
+Another go at the stub chips, done a different way.
+
+Tapping a chip worked out where to move the canvas by recalculating the node's
+position from the graph layout, the zoom and the screen density. That calculation
+was right on paper and wrong on a device, and three releases of correcting it did
+not help.
+
+It now measures where the bubble actually is on screen and moves by the
+difference. There is no zoom or density in that sum at all, so there is nothing
+left to get wrong: whatever the node's distance from the middle turns out to be,
+that is how far the canvas moves.

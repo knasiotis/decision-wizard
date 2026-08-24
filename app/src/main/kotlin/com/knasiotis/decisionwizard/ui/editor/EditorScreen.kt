@@ -53,19 +53,21 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.knasiotis.decisionwizard.R
@@ -93,7 +95,6 @@ fun EditorScreen(
     var scale by remember { mutableFloatStateOf(1f) }
     var pan by remember { mutableStateOf(Offset.Zero) }
     var selected by remember { mutableStateOf<String?>(null) }
-    var viewport by remember { mutableStateOf(IntSize.Zero) }
 
     // The node to draw attention to, and a key that changes every time so the
     // same node can be pointed at twice running.
@@ -106,12 +107,17 @@ fun EditorScreen(
     // Where the canvas is gliding to, if anywhere.
     var target by remember { mutableStateOf<Offset?>(null) }
 
-    // A node a jump asked for before the canvas had been measured. Centring
-    // against a zero-width viewport puts the node at screen x = 0 rather than in
-    // the middle, which throws the whole graph off to the left — exactly what a
-    // broken jump looks like. Hold the request instead and honour it the moment
-    // a real size arrives.
+    // A node a jump asked for before anything had been measured. Held, and
+    // honoured the moment a measurement arrives — moving to a guessed position
+    // reads as a broken jump, waiting a frame reads as nothing at all.
     var pendingFocus by remember { mutableStateOf<String?>(null) }
+
+    // Where each bubble actually is on screen, and the middle of the canvas
+    // area, both in root coordinates. A jump is worked out from these rather
+    // than from the layout, so it does not depend on the zoom, the screen
+    // density or the container's own offset being what this code believes.
+    val measured = remember { mutableStateMapOf<String, Measured>() }
+    var canvasCentre by remember { mutableStateOf<Offset?>(null) }
     val density = LocalDensity.current.density
 
     // Measured bubble heights, in dp. LayoutEngine assumes 64 for every node
@@ -158,23 +164,15 @@ fun EditorScreen(
     }
 
     /**
-     * The pan that puts [nodeId] in the middle, or null if that cannot be worked
-     * out yet — no layout, no such node, or a canvas that has not been measured.
+     * The pan that puts [nodeId] in the middle, or null if nothing has been
+     * measured yet.
      */
     fun panFor(nodeId: String): Offset? {
-        val current = layout ?: return null
-        val position = current.positions[nodeId] ?: return null
-        if (viewport.width <= 0 || viewport.height <= 0) return null
-        // The measured height, so a tall bubble is centred on itself rather
-        // than on where its first 64dp happen to be.
-        val height = heights[nodeId] ?: NODE_HEIGHT
+        val centre = canvasCentre ?: return null
+        val seen = measured[nodeId] ?: return null
         return Offset(
-            Viewport.centreOn(
-                position.x + NODE_WIDTH / 2, viewport.width.toFloat(), scale, density
-            ),
-            Viewport.centreOn(
-                position.y + height / 2, viewport.height.toFloat(), scale, density
-            )
+            Viewport.centreBy(seen.centre.x, centre.x, seen.panAtMeasure.x),
+            Viewport.centreBy(seen.centre.y, centre.y, seen.panAtMeasure.y)
         )
     }
 
@@ -187,23 +185,19 @@ fun EditorScreen(
             return
         }
         if (remember) cameFrom.add(pan)
-        // Pin the node to the middle of the screen, and do nothing else. `scale`
-        // is read and never written, so the zoom the user set is preserved.
-        //
-        // Nothing is clamped to keep the rest of the canvas on screen. Two
-        // earlier attempts did, and that is what kept these jumps landing short
-        // of the node they had just flashed: a node near the edge of a big graph
-        // cannot be centred *and* leave the whole graph visible, so the
-        // containment rule always won. A centred node is on screen by
-        // construction, which is all this has to guarantee.
+        // Pin the node to the middle, and do nothing else. `scale` is never
+        // written, so the zoom the user set is preserved; nothing is clamped, so
+        // a node near the edge of the graph still reaches the middle even though
+        // the rest of the canvas runs off the sides. A centred node is on screen
+        // by construction, which is all a jump has to guarantee.
         target = destination
         focused = nodeId
         focusKey++
     }
 
-    // A jump that arrived before the canvas was measured, honoured as soon as it
-    // is. Also re-centres if the viewport changes underneath a pending one.
-    LaunchedEffect(viewport, layout) {
+    // A jump that arrived before anything was measured, honoured as soon as a
+    // measurement lands.
+    LaunchedEffect(canvasCentre, measured.size, layout) {
         val waiting = pendingFocus ?: return@LaunchedEffect
         if (panFor(waiting) == null) return@LaunchedEffect
         pendingFocus = null
@@ -315,7 +309,7 @@ fun EditorScreen(
                     .padding(insets)
                     .fillMaxSize()
                     .clipToBounds()
-                    .onSizeChanged { viewport = it }
+                    .onGloballyPositioned { canvasCentre = it.boundsInRoot().center }
                     .transformable(transform)
             ) {
                 Canvas(
@@ -327,12 +321,18 @@ fun EditorScreen(
                     focusKey = focusKey,
                     onSelect = { selected = it },
                     onJump = { lookAt(it, remember = true) },
-                    onHeight = { id, measured ->
+                    onHeight = { id, height ->
                         // Guarded: an unguarded write would re-lay-out for ever
                         // on a sub-pixel difference.
-                        if (kotlin.math.abs((heights[id] ?: -1f) - measured) > 0.5f) {
-                            heights[id] = measured
+                        if (kotlin.math.abs((heights[id] ?: -1f) - height) > 0.5f) {
+                            heights[id] = height
                         }
+                    },
+                    // Recorded with the pan that was in force when it was taken,
+                    // so a measurement that predates the last pan is still exact
+                    // rather than merely stale.
+                    onBounds = { id, bounds ->
+                        measured[id] = Measured(bounds.center, pan)
                     },
                     modifier = Modifier.graphicsLayer {
                         scaleX = scale
@@ -407,6 +407,8 @@ private fun Canvas(
     onJump: (String) -> Unit,
     /** Reports a bubble's measured height in dp, which the layout is redone on. */
     onHeight: (String, Float) -> Unit,
+    /** Reports where a bubble actually ended up, in root coordinates. */
+    onBounds: (String, Rect) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val edgeColour = MaterialTheme.colorScheme.outline
@@ -521,6 +523,7 @@ private fun Canvas(
                     modifier = Modifier
                         .width(NODE_WIDTH.dp)
                         .onSizeChanged { onHeight(id, it.height / density) }
+                        .onGloballyPositioned { onBounds(id, it.boundsInRoot()) }
                 )
             }
         }
@@ -550,6 +553,14 @@ private const val NODE_HEIGHT = 64f
 
 /** Breathing room under the last layer, so it is not flush with the edge. */
 private const val CANVAS_MARGIN = 48f
+
+/**
+ * Where a bubble was seen on screen, and the pan that was in force at the time.
+ *
+ * Keeping the two together is what lets a measurement taken under an older pan
+ * still give an exact answer: the difference between then and now is known.
+ */
+private data class Measured(val centre: Offset, val panAtMeasure: Offset)
 
 /** A label's footprint in dp, so two of them can be kept off each other. */
 private data class LabelBox(
