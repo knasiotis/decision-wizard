@@ -120,10 +120,23 @@ jobs:
           fi
           # Obtainium matches on a stable asset name, so keep this format.
           mv "$APK" "decision-wizard-${GITHUB_REF_NAME}.apk"
-          gh release create "$GITHUB_REF_NAME" \
-            --title "$GITHUB_REF_NAME" \
-            --generate-notes \
-            "decision-wizard-${GITHUB_REF_NAME}.apk"
+          # Notes are written by hand into release-notes/<tag>.md — a features
+          # section and a fixes section, one plain bullet each with the commit
+          # id in brackets. A generated list of commit subjects says what was
+          # touched, not what changed for the person installing it.
+          NOTES="release-notes/${GITHUB_REF_NAME}.md"
+          if [ -f "$NOTES" ]; then
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file "$NOTES" \
+              "decision-wizard-${GITHUB_REF_NAME}.apk"
+          else
+            echo "::warning::$NOTES is missing, falling back to generated notes"
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes \
+              "decision-wizard-${GITHUB_REF_NAME}.apk"
+          fi
 
       - name: Remove keystore
         if: always()
