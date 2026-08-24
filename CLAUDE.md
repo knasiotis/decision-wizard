@@ -130,11 +130,43 @@ Implementation: `graphcore/.../layout/GraphLayout.kt` (`object LayoutEngine`).
    spend effort perfecting this until a real 100-node graph proves it matters.
 4. Unreachable nodes get parked in a band below the last layer.
 
+Node heights are **measured, not assumed.** `LayoutEngine.layout` takes a
+`nodeHeightOf` callback and the editor backs it with `onSizeChanged` on every
+bubble, feeding the numbers into a `mutableStateMapOf` that the layout is
+recomputed from. It settles after one extra frame because a bubble's width is
+fixed, so its height cannot depend on where it was put. Without this the engine
+assumes 64dp for everything, a tall bubble overlaps the layer below it, and its
+edges start inside it.
+
+That is why **the layout is built in `EditorScreen`, not in `EditorViewModel`** —
+only a composable can measure a composable. It is still derived from the graph
+every time and still never persisted.
+
 Edge classification:
 
 - Forward hop spanning 1..`MAX_DRAWN_SPAN` layers → **`ARROW`**, drawn.
 - Anything else (back-edge, cross-edge, long jump) → **`STUB`**, not drawn.
 - No target → **`DANGLING`**, short arrow to nowhere.
+
+**Drawn edges are right-angled, and the route is computed in `:graphcore`.**
+`RenderEdge.route` is a polyline from the bottom of the source to the top of the
+target; the UI only converts it to pixels. A straight line across two layers ran
+behind whatever stood in the layer between, which on screen reads as an edge into
+that node rather than past it.
+
+- One layer down → dog-leg through the empty band between the two layers. The
+  band, not the midpoint of the two nodes: the source may be the short one in its
+  layer, and a run level with a taller neighbour would cut through it.
+- Across a layer → down a **corridor**, meaning the middle of a gap between two
+  of that layer's nodes or just outside the row, picked nearest to the straight
+  line. Nothing has to move to make room; `NODE_H_GAP` means the gaps are
+  already there.
+- `midpointOf(route)` puts the answer label half way along **by length**. The
+  centre of the bounding box falls off the line the moment a route turns.
+
+`LayoutEngineTest` asserts no segment of any route runs over any node. Keep that
+test honest rather than pinning down which corridor is chosen — like the
+barycenter order, that is a heuristic.
 
 A `STUB` emits **two** chips, and both are required:
 
@@ -147,6 +179,13 @@ idea anything points at it, and will restructure or delete it wrongly.
 Tapping either chip animates the viewport to the other end and flashes the
 target node for ~500ms. Keep a small viewport back-stack so a second tap returns
 the user to where they were.
+
+**The jump is clamped to keep the canvas on screen.** Centring a node on a graph
+that already fits the viewport shoves the rest of it off to one side, and the
+further out you are zoomed the further it goes — it looks like the jump landed
+somewhere empty. A canvas that fits is centred instead; one that does not is held
+so its edges cannot come inside the viewport. Panning by hand stays unclamped:
+the user knows where they put it.
 
 ---
 
@@ -330,9 +369,16 @@ and fully unit-tested; `ChatScreen` only renders it. Session state
 what makes rotation survival and, later, Room-backed resumable sessions cheap.
 Keep new logic on that side of the line.
 
-`samples/` holds the **one canonical copy** of the sample graph. `:graphcore`
-picks it up as a test resource via a `srcDir` in its build file; `:app` should
-add the same directory to its assets rather than copying the file.
+`samples/` holds two graphs, with different jobs. `:graphcore` picks the whole
+directory up as a test resource via a `srcDir` in its build file. **Neither is
+bundled into the APK** — a fresh install starts empty, by decision.
+
+- `graph-schema-example.json` — the **one canonical copy** of the schema example
+  and the `Fixtures.kt` test fixture. Tests load it by name, so it must keep that
+  name and its deliberate cycle.
+- `pc-wont-turn-on.dwiz` — the demo graph the F-Droid screenshots are taken of,
+  described under F-Droid below. `LayoutEngineTest` loads it by name too, so CI
+  needs it present and it cannot be renamed or moved.
 
 ### Why `:graphcore` is a separate module
 
@@ -397,9 +443,9 @@ caching. (Locally it is fine and used.)
 ### Test builds during development
 
 Each build handed over for testing gets its own patch tag — `v0.2.1`, `v0.2.2`,
-… — so it installs over the previous one instead of sitting alongside it.
-`versionName` comes from the tag and `versionCode` from `github.run_number`,
-which is monotonic, so upgrades always move forward.
+… — so it installs over the previous one instead of sitting alongside it. Bump
+`appVersionName` in `gradle.properties` and tag the commit to match; `release.yml`
+refuses a tag that disagrees with it.
 
 These are signed with the release key, so **the first one cannot install over a
 debug build** — different signing key, and Android refuses the upgrade. Uninstall
@@ -407,17 +453,50 @@ the debug build once; release-to-release upgrades are then clean.
 
 ### The release contract
 
-Implemented in `app/build.gradle.kts`. `release.yml` supplies `-PversionName`
-and `-PversionCode` plus four keystore environment variables; the build reads
-them all through `providers.*` rather than `System.getenv` / `findProperty`,
-because the root `gradle.properties` enables the configuration cache and direct
-reads at configuration time invalidate it.
+Implemented in `app/build.gradle.kts`.
+
+**The version is in the repo, not in CI.** `gradle.properties` holds
+`appVersionName`, and `versionCodeOf()` derives `versionCode` from it as
+`major*10000 + minor*100 + patch` — `0.6.0` is `600`. `release.yml` supplies only
+the four keystore environment variables and *checks* the tag against
+`appVersionName` rather than passing a version in.
+
+This is not a style preference. F-Droid builds a tag with a plain
+`gradle assembleRelease` and passes no `-P` flags at all, so the old scheme —
+`versionName` from the tag, `versionCode` from `github.run_number` — produced
+`dev` / `1` for anyone who was not GitHub Actions, and `run_number` was a number
+that existed nowhere in the repo and nobody else could reproduce. **Do not move
+the version back onto the command line.**
+
+Patch is capped at 99 by the arithmetic; the build fails loudly rather than
+silently wrapping. `0.5.5` shipped as versionCode 33 under the old scheme and
+`0.6.0` is 600, so the jump is forward and upgrades are unaffected.
+
+Values are read through `providers.*` rather than `System.getenv` /
+`findProperty`, because the root `gradle.properties` enables the configuration
+cache and direct reads at configuration time invalidate it.
 
 A local release build with no `KEYSTORE_PATH` is simply unsigned rather than a
 configuration error.
 
 Keep the release asset named `decision-wizard-<tag>.apk`. Obtainium matches on a
 stable asset name; changing it breaks update detection on installed devices.
+
+### Release notes are written, not generated
+
+`release.yml` publishes `release-notes/<tag>.md` with `--notes-file`, and only
+falls back to `--generate-notes` (with a warning) when that file is missing. A
+generated list of commit subjects says what was touched, not what changed for the
+person installing it.
+
+The format is fixed: a `## Features` section and a `## Fixes` section, plain
+one-line bullets, each ending with **the commit id in brackets**. Omit a section
+that has nothing in it. Write the file before tagging — the ids have to exist
+already, so the notes commit is the last one before the tag.
+
+This is separate from `fastlane/…/changelogs/<versionCode>.txt` on purpose. Both
+describe the same release, but the fastlane file is what F-Droid users read and
+carries no commit ids.
 
 ### Keystore — done and proven
 
@@ -440,6 +519,148 @@ Re-run the rehearsal any time the secrets change, rather than finding out on a
 tag.
 
 ---
+
+## F-Droid
+
+The app is being submitted to F-Droid. It meets the inclusion policy already and
+always did — GPL-3.0, every dependency FOSS (AndroidX, Kotlin, Room, all Apache
+2.0), no GMS, no Firebase, no analytics, no ads, no network code of any kind, no
+embedded keys. Nothing about the app had to change to qualify. What had to change
+was how it is *built*.
+
+### What lives where
+
+| Thing | Where | Read by |
+|---|---|---|
+| Summary, description, changelogs, icon | `fastlane/metadata/android/en-US/` | F-Droid, from this repo |
+| Build recipe | `fdroid/com.knasiotis.decisionwizard.yml` | nothing — it is a copy to paste into fdroiddata |
+| Version | `gradle.properties` | everything |
+| GitHub release notes | `release-notes/<tag>.md` | `release.yml`, at publish time |
+
+`fdroid/…yml` does nothing where it sits. It gets copied into a fork of
+`gitlab.com/fdroid/fdroiddata` as `metadata/com.knasiotis.decisionwizard.yml`, on
+a branch named after the application id, and submitted as a merge request. It is
+kept here so its `versionName` / `versionCode` cannot drift away from
+`gradle.properties` unnoticed.
+
+**Cutting a release touches four files, and nothing enforces that they agree:**
+
+1. `gradle.properties` — `appVersionName`, the one everything else derives from
+2. `fdroid/com.knasiotis.decisionwizard.yml` — `versionName`, `versionCode`,
+   `commit`, `CurrentVersion`, `CurrentVersionCode`
+3. `fastlane/…/changelogs/<versionCode>.txt` — named after the **code**, for
+   F-Droid users
+4. `release-notes/<tag>.md` — named after the **tag**, for GitHub
+
+Only the tag-versus-`gradle.properties` disagreement is caught automatically, by
+`release.yml`. The other three fail quietly: a wrong recipe builds the wrong
+commit, and a misnamed notes or changelog file just goes unread.
+
+Summary and description are deliberately *not* in the recipe. F-Droid prefers
+fastlane files in the app repo, so they live in one place instead of two.
+Changelog files are named after the **versionCode**, not the version name —
+`changelogs/600.txt`, not `0.6.0.txt`.
+
+### Things that were checked, so they need not be checked again
+
+- **The committed `gradle-wrapper.jar` is fine.** F-Droid's scanner rejects
+  prebuilt binaries, but `scanner.py` explicitly calls `removeproblem` on
+  `gradle-wrapper.jar`, `gradlew`, `gradlew.bat` and
+  `gradle-daemon-jvm.properties`. No `scandelete` or `scanignore` is needed.
+- **Gradle 9.7.1 is supported.** This one is easy to get wrong: the hardcoded
+  version list inside `gradlew-fdroid` stops at 9.2.0, which looks like a hard
+  ceiling. It is only a fallback. The real list is fetched at build time from
+  `gitlab.com/fdroid/gradle-transparency-log/checksums.json`, which carries
+  9.7.1. Check the transparency log, not the script.
+- **AGP 9.3.1 is fine**, and its Gradle floor of 9.5.0 is satisfied. That check
+  is a fallback anyway — `gradlew-fdroid` reads `distributionUrl` from
+  `gradle-wrapper.properties` first and only consults the AGP mapping if no
+  wrapper is found.
+- **`compileSdk 37` is fine.** The buildserver preinstalls platforms only up to
+  `android-33`, which looks alarming, but SDK downloading is not disabled and AGP
+  fetches the missing platform itself.
+
+### Screenshots are the remaining gap
+
+`fastlane/metadata/android/en-US/images/phoneScreenshots/` is empty and F-Droid
+wants it filled. They cannot be produced from this machine — there is no emulator
+and no system image installed, only `platform-tools`. They have to come off a
+real device, via `adb exec-out screencap -p > shot.png`.
+
+Two shots, in this order, as listed in `README.md`: **`01-chat.png`** — a chat
+mid-flow, showing a question, its answer chips and a snippet with the copy
+button — and **`02-canvas.png`** — the editor, showing a branch and the stub
+chips on the cycle. The chat one goes first because F-Droid's carousel leads with
+it. A node-sheet shot and a library shot were considered and dropped: they show
+chrome rather than the idea.
+
+Filenames are `sorted()` by F-Droid, so keep the numeric prefix and zero-pad if a
+third is ever added.
+
+**`samples/pc-wont-turn-on.dwiz` exists to be the graph in those shots.** It is a
+desk-side "PC won't turn on" flow — 20 nodes, 8 resolutions, 16 snippets — and it
+is shaped for the canvas shot rather than only for realism:
+
+- It validates with **zero** warnings, so no badges clutter the canvas.
+- Of 26 edges, exactly **one** is a stub: the cycle
+  `n-ram → n-recheck-internal → n-ram`. That is one reciprocal chip pair to
+  photograph, instead of ten scattered ones. Depths were chosen to keep every
+  other edge inside `MAX_DRAWN_SPAN`, so **re-pointing one answer can silently
+  turn a drawn arrow into a stub.** `LayoutEngineTest."the demo graph stays
+  shaped for its screenshots"` guards both the zero warnings and the single
+  stub, and also asserts no edge route runs over a node — so a break shows up as
+  a failing test rather than as a bad screenshot.
+- The root and `n-display` have three answers each; the rest have two, which is
+  what makes the wrapping answer chips look right.
+- Reconvergence is real: several paths land on `n-resolved-boots` and
+  `n-escalate-hw`.
+
+Get it onto the device with `adb push samples/pc-wont-turn-on.dwiz /sdcard/Download/`,
+then tap it — the `.dwiz` intent filter opens it in the app.
+
+### Screenshots must be inside the tag
+
+Worth knowing before planning the submission: F-Droid does **not** read fastlane
+metadata from the default branch. `insert_localized_app_metadata()` scans the
+**build checkout**, which is the tree at the recipe's `commit:` — the tag. So
+screenshots added to `main` after a tag do not attach to that build; they first
+appear in whatever version is tagged after them.
+
+That is a chicken-and-egg only if you let it be one. Screenshots do not care how
+the APK is signed, so they can be taken off a debug build at any time. **Take
+them before tagging** rather than after.
+
+Consequences for the submission:
+
+- v0.5.6 is being tagged without screenshots. Its F-Droid listing will have none.
+- The fdroiddata merge request should point `commit:` at **the first tag that
+  contains the screenshots**, not necessarily at v0.5.6.
+- The alternative, if a listing is wanted sooner, is putting the images directly
+  in the fdroiddata repo under `metadata/com.knasiotis.decisionwizard/en-US/`,
+  which takes precedence over the app repo. Prefer keeping them here.
+
+### Signing, and why the F-Droid build is not the Obtainium build
+
+F-Droid signs with **its own key**, so an F-Droid install cannot upgrade an
+existing Obtainium install and vice versa — same refusal as debug-over-release.
+Anyone switching has to uninstall first and loses their graphs unless they back
+up.
+
+The fix, if it ever matters, is a **reproducible build**: F-Droid rebuilds the
+tag, confirms it matches the APK from `release.yml` byte for byte, and publishes
+the one signed with *our* key. Not required for acceptance, and not worth doing
+until the app is accepted and building there reliably.
+
+### The one permission
+
+The APK declares `com.knasiotis.decisionwizard.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`,
+which F-Droid will display. It is injected by AndroidX, it is signature-level and
+scoped to this app's own id, and it grants nothing to anybody. `AndroidManifest.xml`
+still declares no permissions and the app still touches no network. Do not try to
+remove it — it comes from `androidx.core` registering non-exported receivers.
+Note that `README.md` says "the app asks for nothing", which is true of the
+manifest but not literally true of the built APK's permission list.
+
 
 ## Gotchas learned the hard way
 
@@ -589,8 +810,16 @@ rehearsal instead of by burning a version number.
 - **v0.5.0 — done.** Snippets can be written rather than only read, resolutions,
   transcript export, graph copy, clickable stub chips, and undo that says what it
   did and takes you there.
-- **v0.6.0 — planned, not started.** A search bar over the **Chats** list and the
-  **Graphs** list. Both grow past a screenful quickly and there is currently no
+- **v0.5.6 — canvas fixes plus the F-Droid packaging, untagged.** Right-angled
+  edge routes so a hop across a layer stops running behind the node in between,
+  measured bubble heights behind it, a stub-chip jump that keeps the canvas on
+  screen, and a focus flash that no longer sticks. Bug fixes, so a patch tag
+  rather than a minor one — nothing new is possible that was not possible before.
+  The F-Droid packaging rides along on it rather than taking a number of its own.
+
+- **v0.6.0 — the search bar, not started, and reserved for it alone.** Fixes and
+  packaging do not go on this tag; it names the one thing a user gets out of it.
+  A search bar over the **Chats** list and the **Graphs** list. Both grow past a screenful quickly and there is currently no
   way to find anything in either.
 
   The pattern already exists three times over — the new-chat graph picker, the
@@ -599,6 +828,12 @@ rehearsal instead of by burning a version number.
   empty list. Follow it rather than inventing a fourth behaviour. Searching chats
   should match the chat's own name *and* its graph's name, since a chat named
   "Tuesday callout" is often looked for by the flow it ran on.
+
+- **The F-Droid packaging rode along with v0.5.6**, exactly as the rule above
+  says it should: it carries no user-facing change, so it took no number of its
+  own. `appVersionName=0.5.6`, `changelogs/506.txt`, and the recipe all agree on
+  `0.5.6` / `506`. It was originally written against `0.6.0`; that number went
+  back to search.
 
 **Attachments are deferred**, deliberately, and are no longer part of v0.4. They
 are the one feature that forces `.dwiz` to become a zip, and nothing so far has
@@ -674,23 +909,34 @@ recomposition is driven from `:app` and the core stays pure.
 
 ## Current state
 
-**v0.1 and v0.2 are both done and device-tested.** `:graphcore` is green at 70
-tests. Four signed test builds published from the `v0.2` branch.
+**Everything through v0.5 is done, merged and released.** `main` carries the
+work and the tags; the last published build is `v0.5.5` (versionCode 33).
+`:graphcore` is green at **103** tests. `README.md` has been rewritten and is
+current.
 
-`main` is still at v0.1 — the v0.2 work lives on the `v0.2` branch and its PR is
-**not yet opened or merged**, so the tags are on the branch rather than on
-`main`.
+**`main` is five commits past `v0.5.5`** — four canvas fixes plus the release
+notes change — **and the F-Droid packaging is committed on top of them. All of
+it is v0.5.6.** Nothing is tagged or pushed yet.
 
-Outstanding, and **v0.6 is search over the Chats and Graphs lists** — agreed but
-deliberately not started.
+The packaging took no number of its own: `appVersionName=0.5.6` gives
+versionCode **506**, and `changelogs/506.txt` and `fdroid/…yml` agree with it.
+`release.yml` now refuses a tag that disagrees with `appVersionName`, so v0.5.6
+is the only tag this tree can publish.
+
+**v0.6.0 is search and is being built in a separate session**, so do not assume
+the tree is yours and do not take that number.
 
 Also outstanding:
 
-1. **Open and merge the v0.2 PR**, then tag `v0.2.0` on `main`.
-2. **v0.3** — see the plan above.
-3. **Consider raising `targetSdk` to 37** during a device test pass. Nothing
+1. **Tag v0.5.6** — push `main`, then the tag. That is the whole release.
+2. **Screenshots**, which must land *inside* a tag to reach F-Droid — see
+   "Screenshots must be inside the tag" above. Take them off a debug build,
+   commit them, and tag.
+3. **The fdroiddata merge request**, pointing `commit:` at the first tag that
+   has the screenshots.
+4. **v0.6** — search, in the other session. See the build order above.
+5. **Consider raising `targetSdk` to 37** during a device test pass. Nothing
    needs it; there is no Play Store deadline since distribution is Obtainium.
-4. Rewrite `README.md` from scratch.
 
 Note: a signed APK **cannot be installed over a debug build** — different keys,
 so Android refuses the upgrade. Uninstall the debug build first. Release-to-

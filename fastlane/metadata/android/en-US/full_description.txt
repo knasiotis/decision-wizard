@@ -1,0 +1,46 @@
+Decision Wizard turns a troubleshooting flowchart into a conversation. The app
+asks one question, you tap an answer, and it asks the next one — until you reach
+an endpoint that hands you the exact wording to paste into a ticket.
+
+It was built for support agents, but it fits anything that is really a decision
+tree pretending to be a wiki page: intake scripts, triage checklists, escalation
+rules, returns policies.
+
+<b>No network. No accounts. No tracking.</b> Everything happens on the device.
+There is no model, no inference and no server behind this — the "bot" is a graph
+being walked. The app requests no permissions at all.
+
+<b>Chat</b>
+
+* Walk a flow one question at a time, with wrapping answer buttons
+* Each step can carry ready-made text — a ticket note, an escalation summary, a
+  closing comment — with a copy button
+* Tap any earlier answer to rewind and take a different branch
+* Chats are named and resumable, and survive their flow being deleted
+* Export a chat as plain text for the ticket
+* Optional automatic clean-up of old chats
+
+<b>Editor</b>
+
+* Build flows on the device, on a zoomable canvas laid out automatically —
+  nodes are never dragged around
+* Add questions, add resolutions, connect to existing questions
+* Four ways to delete: splice, delete only, delete and clean up, or reparent
+* Undo and redo that say what changed and take you to it
+* Long links are shown as chips at both ends; tap one to jump to the other
+
+<b>Library</b>
+
+* Keep several flows side by side; create, copy, import, export, delete
+* Import decides for you: a newer revision offers an update, anything else
+  offers a copy
+* Back up every flow to a plain .zip, and restore from one
+
+<b>Flows are files</b>
+
+A flow is a .dwiz file, which is plain JSON you can open in any text editor,
+diff, or send to a colleague to import. Nothing is locked inside the app, and a
+whole-library backup is an ordinary .zip you can open on a computer.
+
+Cycles, reconvergence and half-finished branches are all legal — the app shows
+warnings, it does not refuse to save.

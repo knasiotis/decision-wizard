@@ -6,9 +6,11 @@ name: Release
 #   Tag push       -> build, sign, publish a GitHub Release
 #   Run workflow   -> build, sign, verify, publish nothing
 #
-# versionName comes from the tag with the leading v stripped; versionCode comes
-# from github.run_number, which is monotonic per workflow and so never goes
-# backwards the way a date or a commit count can.
+# The version is NOT injected here. It lives in gradle.properties as
+# appVersionName, and versionCode is derived from it in app/build.gradle.kts.
+# F-Droid builds the tag with a plain `gradle assembleRelease` and passes no -P
+# flags, so anything CI supplies would be absent from their APK. This job checks
+# the tag agrees with the committed version instead of supplying it.
 #
 # Versions name end-user functionality. v0.1 is internal and never tagged —
 # following one hard-coded flow is not something to release — so the first tag
@@ -61,6 +63,20 @@ jobs:
           fi
           printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
 
+      # A tag that disagrees with the committed version would publish an APK
+      # whose version nobody else can reproduce, and would break F-Droid's
+      # UpdateCheckMode: Tags, which reads the version out of the tagged tree.
+      - name: Check the tag matches the committed version
+        if: github.ref_type == 'tag'
+        run: |
+          COMMITTED=$(sed -n 's/^appVersionName=//p' gradle.properties)
+          TAGGED="${GITHUB_REF_NAME#v}"
+          if [ "$COMMITTED" != "$TAGGED" ]; then
+            echo "::error::tag $GITHUB_REF_NAME says $TAGGED but gradle.properties says $COMMITTED"
+            exit 1
+          fi
+          echo "version $COMMITTED"
+
       # Tests run in the same Gradle invocation as the build so a broken core
       # can never be published, at no extra runner startup cost.
       - name: Build signed APK
@@ -69,15 +85,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
-            VERSION_NAME="${GITHUB_REF_NAME#v}"
-          else
-            VERSION_NAME="0.0.0-signing-check"
-          fi
-          ./gradlew :graphcore:test :app:assembleRelease \
-            -PversionName="$VERSION_NAME" \
-            -PversionCode="${{ github.run_number }}"
+        run: ./gradlew :graphcore:test :app:assembleRelease
 
       # Signing rehearsal only: prove the keystore decodes and the APK is signed,
       # without creating a release or consuming a version number.

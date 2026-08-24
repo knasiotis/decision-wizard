@@ -90,13 +90,11 @@ half-built branches are all legal — the app warns, it does not refuse.
 
 ## Screenshots 📸
 
-Not included yet. Worth adding, in this order:
+Not included yet. Two, in this order:
 
 1. **A chat mid-flow** — a question, its answer buttons, and a snippet with the
    copy button. This is the one that explains the app.
 2. **The canvas** — a flow with a branch and a cycle, showing the stub chips.
-3. **The node sheet** — the actions available on a question.
-4. **The library** — a few flows side by side.
 
 ## Building 🔨
 

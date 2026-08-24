@@ -17,8 +17,29 @@ room {
 // gradle.properties turns the configuration cache on, and direct reads at
 // configuration time invalidate it.
 val keystorePath = providers.environmentVariable("KEYSTORE_PATH")
-val buildVersionName = providers.gradleProperty("versionName")
-val buildVersionCode = providers.gradleProperty("versionCode")
+
+// The version comes from gradle.properties, not from the command line. F-Droid
+// builds the tag with a plain `gradle assembleRelease` and passes no -P flags,
+// so a CI-injected version would land in their APK as "dev" / 1 and the build
+// would be rejected for not matching the recipe.
+val appVersionName = providers.gradleProperty("appVersionName")
+
+// Derived from the name so F-Droid, CI and a local release build cannot
+// disagree about it: major*10000 + minor*100 + patch, the same arithmetic
+// F-Droid's own tooling uses. Patch is therefore capped at 99.
+//
+// This replaced github.run_number, which was monotonic but existed nowhere in
+// the repo — nobody outside CI could reproduce the number. 0.5.5 shipped as 33
+// under the old scheme; 0.5.6 is 506, so upgrades still move forward.
+fun versionCodeOf(name: String): Int {
+    val parts = name.split(".")
+    require(parts.size == 3) { "appVersionName must be major.minor.patch, got '$name'" }
+    val (major, minor, patch) = parts.map { part ->
+        part.toIntOrNull() ?: error("appVersionName must be numeric, got '$name'")
+    }
+    require(patch < 100) { "patch must be below 100, got '$name'" }
+    return major * 10000 + minor * 100 + patch
+}
 
 android {
     namespace = "com.knasiotis.decisionwizard"
@@ -37,8 +58,8 @@ android {
         // runtime behaviour changes, and the app has never run on a device yet.
         // Raise it once v0.1 has actually been installed and tried.
         targetSdk = 36
-        versionCode = buildVersionCode.orNull?.toInt() ?: 1
-        versionName = buildVersionName.orNull ?: "dev"
+        versionName = appVersionName.get()
+        versionCode = versionCodeOf(appVersionName.get())
     }
 
     // Only exists in CI, where release.yml decodes the keystore into RUNNER_TEMP.

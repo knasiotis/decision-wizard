@@ -1,0 +1,15 @@
+Decision Wizard is now on F-Droid, built from source.
+
+Canvas fixes:
+
+* An edge crossing a layer is drawn with right angles, so it no longer runs
+  behind the node in between
+* Tapping a stub chip keeps the canvas on screen instead of shoving it aside
+* A node no longer stays stuck part way through its flash after a jump
+
+The version number is now recorded in the repository rather than supplied by the
+build server, so anyone building a tag gets exactly the same app.
+
+If you already have Decision Wizard installed from a downloaded APK, note the
+F-Droid build is signed with F-Droid's key and Android will not upgrade it in
+place. Back up your flows from Settings, uninstall, then install from F-Droid.
