@@ -212,6 +212,13 @@ class LayoutEngineTest {
         }
     }
 
+    /**
+     * The departure point is no longer the middle of the source. Each answer
+     * leaves from its own slot along the bottom edge so two answers from one
+     * node are not drawn as a single forking line, so what can be asserted is
+     * that a route leaves from somewhere under its source — not from where
+     * exactly.
+     */
     @Test
     fun `a route starts under its source and ends on top of its target`() {
         val graph = Fixtures.example()
@@ -220,10 +227,43 @@ class LayoutEngineTest {
         layout.edges.filter { it.kind == EdgeKind.ARROW }.forEach { edge ->
             val source = layout.positions.getValue(edge.sourceId)
             val target = layout.positions.getValue(edge.targetId!!)
-            assertEquals(source.x + NODE_WIDTH / 2, edge.route.first().x)
-            assertEquals(source.y + 64f, edge.route.first().y)
+            val leaves = edge.route.first()
+            assertTrue(
+                leaves.x > source.x && leaves.x < source.x + NODE_WIDTH,
+                "${edge.answerId} leaves from ${leaves.x}, outside its source"
+            )
+            assertEquals(source.y + 64f, leaves.y)
             assertEquals(target.x + NODE_WIDTH / 2, edge.route.last().x)
             assertEquals(target.y, edge.route.last().y)
+        }
+    }
+
+    /**
+     * Two answers from one node are two different paths. Drawn from the same
+     * point and along the same lane they read as one line that happens to fork,
+     * and the reader cannot tell which branch they are on.
+     */
+    @Test
+    fun `answers leaving the same node share no line`() {
+        listOf(Fixtures.example(), demoGraph()).forEach { graph ->
+            val layout = LayoutEngine.layout(graph, wrappedHeights(graph))
+            layout.edges
+                .filter { it.kind == EdgeKind.ARROW }
+                .groupBy { it.sourceId }
+                .filterValues { it.size > 1 }
+                .forEach { (sourceId, siblings) ->
+                    val departures = siblings.map { it.route.first().x }
+                    assertEquals(
+                        departures.size, departures.toSet().size,
+                        "${graph.name}/$sourceId: two answers leave from the same point"
+                    )
+                    // The horizontal run each one takes across the empty band.
+                    val lanes = siblings.map { it.route[1].y }
+                    assertEquals(
+                        lanes.size, lanes.toSet().size,
+                        "${graph.name}/$sourceId: two answers share a lane"
+                    )
+                }
         }
     }
 

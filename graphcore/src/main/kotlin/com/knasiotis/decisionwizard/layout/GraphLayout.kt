@@ -241,17 +241,24 @@ object LayoutEngine {
         source: Position,
         sourceHeight: Float,
         target: Position,
+        /** Which of the source's drawn answers this is, and how many there are. */
+        slot: Int,
+        slots: Int,
         layers: List<List<String>>,
         positions: Map<String, Position>,
         nodeHeightOf: (String) -> Float
     ): List<Point> {
-        val fromX = source.x + NODE_WIDTH / 2
+        // Each answer leaves from its own point along the bottom edge, and runs
+        // along its own lane in the band below. Sharing either draws two answers
+        // as one line that happens to fork, and they are different paths — the
+        // reader cannot tell which branch they are following.
+        val fromX = source.x + NODE_WIDTH * (slot + 1f) / (slots + 1f)
         val toX = target.x + NODE_WIDTH / 2
         val startY = source.y + sourceHeight
         val endY = target.y
 
         val crossed = (source.layer + 1) until target.layer
-        val enterY = bandBelow(source.layer, layers, positions, nodeHeightOf)
+        val enterY = laneBelow(source.layer, slot, slots, layers, positions, nodeHeightOf)
         if (crossed.isEmpty()) {
             // The empty band rather than the midpoint of the two nodes: the
             // source may be the short one in its layer, and a run level with a
@@ -286,6 +293,24 @@ object LayoutEngine {
         layers: List<List<String>>,
         positions: Map<String, Position>,
         nodeHeightOf: (String) -> Float
+    ): Float = laneBelow(layerIndex, 0, 1, layers, positions, nodeHeightOf)
+
+    /**
+     * One of [slots] evenly spaced lanes across the empty band under
+     * [layerIndex]. A single slot is the middle of the band, which is what a
+     * node with one drawn answer gets.
+     *
+     * The band is measured from the deepest bottom in the layer, not from this
+     * node's own: the source may be the short one, and a run level with a taller
+     * neighbour would cut straight through it.
+     */
+    private fun laneBelow(
+        layerIndex: Int,
+        slot: Int,
+        slots: Int,
+        layers: List<List<String>>,
+        positions: Map<String, Position>,
+        nodeHeightOf: (String) -> Float
     ): Float {
         val bottom = layers.getOrNull(layerIndex).orEmpty()
             .mapNotNull { id -> positions[id]?.let { it.y + nodeHeightOf(id) } }
@@ -293,7 +318,7 @@ object LayoutEngine {
         val next = layers.getOrNull(layerIndex + 1).orEmpty()
             .firstNotNullOfOrNull { positions[it]?.y }
             ?: (bottom + LAYER_V_GAP)
-        return (bottom + next) / 2f
+        return bottom + (next - bottom) * (slot + 1f) / (slots + 1f)
     }
 
     /**
@@ -364,6 +389,20 @@ object LayoutEngine {
         val chips = mutableListOf<StubChip>()
 
         graph.nodes.forEach { node ->
+            // Slots along this node's bottom edge, one per answer that gets a
+            // line. Answers that become chips or dangle take no slot, or the
+            // drawn ones would be bunched to one side of a node whose other
+            // answers are not drawn at all.
+            val here = depths[node.id] ?: 0
+            val drawnAnswers = node.answers.filter { candidate ->
+                val to = candidate.targetNodeId ?: return@filter false
+                if (graph.byId[to] == null) return@filter false
+                val span = (depths[to] ?: 0) - here
+                candidate.id !in backEdges && span in 1..MAX_DRAWN_SPAN
+            }
+            val slotOf = drawnAnswers.withIndex().associate { (i, a) -> a.id to i }
+            val slots = drawnAnswers.size
+
             node.answers.forEach { answer ->
                 val target = answer.targetNodeId
                 val targetNode = graph.byId[target]
@@ -388,6 +427,7 @@ object LayoutEngine {
                     route = if (drawn && source != null && destination != null) {
                         routeBetween(
                             source, nodeHeightOf(node.id), destination,
+                            slotOf[answer.id] ?: 0, slots,
                             layers, positions, nodeHeightOf
                         )
                     } else {
