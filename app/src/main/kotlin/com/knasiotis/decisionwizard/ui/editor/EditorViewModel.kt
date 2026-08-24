@@ -5,8 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.knasiotis.decisionwizard.data.LibraryRepository
 import com.knasiotis.decisionwizard.editor.DeleteOps
 import com.knasiotis.decisionwizard.editor.GraphEditor
-import com.knasiotis.decisionwizard.layout.GraphLayout
-import com.knasiotis.decisionwizard.layout.LayoutEngine
 import com.knasiotis.decisionwizard.model.Answer
 import com.knasiotis.decisionwizard.model.Graph
 import com.knasiotis.decisionwizard.model.GraphValidator
@@ -39,7 +37,6 @@ data class Announcement(
 
 data class EditorUiState(
     val graph: Graph? = null,
-    val layout: GraphLayout? = null,
     val issuesByNode: Map<String, List<Issue>> = emptyMap(),
     val loading: Boolean = true,
     val dirty: Boolean = false,
@@ -355,8 +352,9 @@ class EditorViewModel(
 
         _state.value = EditorUiState(
             graph = graph,
-            // Derived from the graph every time — never cached, never persisted.
-            layout = LayoutEngine.layout(graph),
+            // The layout is derived in the editor rather than here, because it
+            // needs the bubble heights only the composables can measure. It is
+            // still derived from the graph every time, never cached or persisted.
             issuesByNode = GraphValidator.validate(graph)
                 .filter { it.nodeId != null }
                 .groupBy { it.nodeId!! },

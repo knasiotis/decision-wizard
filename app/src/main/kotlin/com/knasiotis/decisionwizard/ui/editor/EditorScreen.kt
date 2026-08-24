@@ -42,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -54,6 +55,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.lerp
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
@@ -69,9 +71,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.knasiotis.decisionwizard.R
 import com.knasiotis.decisionwizard.layout.EdgeKind
 import com.knasiotis.decisionwizard.layout.GraphLayout
+import com.knasiotis.decisionwizard.layout.LayoutEngine
 import com.knasiotis.decisionwizard.layout.NODE_WIDTH
-import com.knasiotis.decisionwizard.layout.Position
+import com.knasiotis.decisionwizard.layout.Point
 import com.knasiotis.decisionwizard.layout.StubChip
+import com.knasiotis.decisionwizard.layout.midpointOf
 import com.knasiotis.decisionwizard.model.Graph
 import com.knasiotis.decisionwizard.model.Issue
 import com.knasiotis.decisionwizard.ui.common.NameDialog
@@ -101,6 +105,19 @@ fun EditorScreen(
     // Where the canvas is gliding to, if anywhere.
     var target by remember { mutableStateOf<Offset?>(null) }
     val density = LocalDensity.current.density
+
+    // Measured bubble heights, in dp. LayoutEngine assumes 64 for every node
+    // unless it is told otherwise, which is what let a tall bubble overlap the
+    // layer below it and an edge start inside its own bubble. Feeding the real
+    // numbers back settles after one extra frame: a bubble's width is fixed, so
+    // its height does not depend on where it was placed.
+    val heights = remember { mutableStateMapOf<String, Float>() }
+    val graph = ui.graph
+    val layout = remember(graph, heights.toMap()) {
+        graph?.let { subject ->
+            LayoutEngine.layout(subject) { id -> heights[id] ?: NODE_HEIGHT }
+        }
+    }
 
     val snackbars = remember { SnackbarHostState() }
     var confirmingExit by rememberSaveable { mutableStateOf(false) }
@@ -133,12 +150,17 @@ fun EditorScreen(
     }
 
     fun lookAt(nodeId: String, remember: Boolean) {
-        val position = ui.layout?.positions?.get(nodeId) ?: return
+        val current = layout ?: return
+        val position = current.positions[nodeId] ?: return
+        // The measured height, so a tall bubble is centred on itself rather
+        // than on where its first 64dp happen to be.
+        val height = heights[nodeId] ?: NODE_HEIGHT
         if (remember) cameFrom.add(pan)
-        // Centre the node: a point on screen is content * scale + pan.
+        // Centre the node: a point on screen is content * scale + pan, so this
+        // is that solved for pan.
         target = Offset(
             viewport.width / 2f - (position.x + NODE_WIDTH / 2) * scale * density,
-            viewport.height / 2f - (position.y + NODE_HEIGHT / 2) * scale * density
+            viewport.height / 2f - (position.y + height / 2) * scale * density
         )
         focused = nodeId
         focusKey++
@@ -241,9 +263,6 @@ fun EditorScreen(
             )
         }
     ) { insets ->
-        val graph = ui.graph
-        val layout = ui.layout
-
         when {
             ui.loading -> Unit
             graph == null || layout == null -> MissingGraph(Modifier.padding(insets))
@@ -264,6 +283,13 @@ fun EditorScreen(
                     focusKey = focusKey,
                     onSelect = { selected = it },
                     onJump = { lookAt(it, remember = true) },
+                    onHeight = { id, measured ->
+                        // Guarded: an unguarded write would re-lay-out for ever
+                        // on a sub-pixel difference.
+                        if (kotlin.math.abs((heights[id] ?: -1f) - measured) > 0.5f) {
+                            heights[id] = measured
+                        }
+                    },
                     modifier = Modifier.graphicsLayer {
                         scaleX = scale
                         scaleY = scale
@@ -335,12 +361,20 @@ private fun Canvas(
     focusKey: Long,
     onSelect: (String?) -> Unit,
     onJump: (String) -> Unit,
+    /** Reports a bubble's measured height in dp, which the layout is redone on. */
+    onHeight: (String, Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val edgeColour = MaterialTheme.colorScheme.outline
     val labelColour = MaterialTheme.colorScheme.onSurfaceVariant
     val labelBackground = MaterialTheme.colorScheme.surface
-    val nodeIds = remember(layout) { layout.positions.keys.toList() }
+    val density = LocalDensity.current.density
+    // Filtered against the graph, because placement below pairs this list with
+    // the measured children by index and a skipped bubble would shift every
+    // node after it onto the wrong position.
+    val nodeIds = remember(layout, graph) {
+        layout.positions.keys.filter { graph.byId.containsKey(it) }
+    }
 
     // Which answer an edge represents is the whole point of the branch, so the
     // label is drawn on the line rather than left to be inferred from position.
@@ -348,20 +382,16 @@ private fun Canvas(
     val labelStyle = MaterialTheme.typography.labelSmall.copy(color = labelColour)
     val painted = remember(layout, labelStyle) {
         layout.edges.mapNotNull { edge ->
-            val from = layout.positions[edge.sourceId] ?: return@mapNotNull null
-            val to = edge.targetId?.let { layout.positions[it] }
-            when (edge.kind) {
-                EdgeKind.ARROW -> if (to == null) null else PaintedEdge(
-                    from = from, to = to,
-                    text = measurer.measure(edge.label, labelStyle)
-                )
-                // Nothing is drawn for an answer with no child yet. Painting a
-                // stub would show "Yes" and "No" on a brand-new question before
-                // either branch exists, which reads as structure that is not
-                // there.
-                EdgeKind.DANGLING -> null
-                EdgeKind.STUB -> null // rendered as chips on both bubbles
-            }
+            // Nothing is drawn for an answer with no child yet: a stub would put
+            // "Yes" and "No" under a brand-new question before either branch
+            // exists, which reads as structure that is not there. A STUB is a
+            // pair of chips on the two bubbles and no line at all.
+            if (edge.kind != EdgeKind.ARROW) return@mapNotNull null
+            PaintedEdge(
+                route = edge.route,
+                text = measurer.measure(edge.label, labelStyle),
+                labelAt = midpointOf(edge.route) ?: return@mapNotNull null
+            )
         }
     }
 
@@ -370,19 +400,21 @@ private fun Canvas(
             // Only edges and their labels are painted. Bubbles are real
             // composables, so they stay hit-testable at any zoom.
             painted.forEach { edge ->
-                val start = Offset(
-                    (edge.from.x + NODE_WIDTH / 2).dp.toPx(),
-                    (edge.from.y + NODE_HEIGHT).dp.toPx()
-                )
-                val end = if (edge.to != null) {
-                    Offset((edge.to.x + NODE_WIDTH / 2).dp.toPx(), edge.to.y.dp.toPx())
-                } else {
-                    Offset(start.x, start.y + DANGLING_LENGTH.dp.toPx())
+                // Right angles, corner to corner. A straight line to a
+                // grandchild runs behind whichever node stands between them and
+                // reads as an edge into it.
+                val corners = edge.route.map { Offset(it.x.dp.toPx(), it.y.dp.toPx()) }
+                corners.zipWithNext { from, to ->
+                    drawLine(
+                        edgeColour, from, to,
+                        strokeWidth = 2.dp.toPx(),
+                        // Rounds the corners, so two segments meet as one line
+                        // rather than as a notch.
+                        cap = StrokeCap.Round
+                    )
                 }
 
-                drawLine(edgeColour, start, end, strokeWidth = 2.dp.toPx())
-
-                val mid = Offset((start.x + end.x) / 2f, (start.y + end.y) / 2f)
+                val mid = Offset(edge.labelAt.x.dp.toPx(), edge.labelAt.y.dp.toPx())
                 val size = edge.text.size
                 val topLeft = Offset(mid.x - size.width / 2f, mid.y - size.height / 2f)
                 val pad = 3.dp.toPx()
@@ -412,7 +444,9 @@ private fun Canvas(
                     focusKey = focusKey,
                     onClick = { onSelect(if (id == selected) null else id) },
                     onChipClick = onJump,
-                    modifier = Modifier.width(NODE_WIDTH.dp)
+                    modifier = Modifier
+                        .width(NODE_WIDTH.dp)
+                        .onSizeChanged { onHeight(id, it.height / density) }
                 )
             }
         }
@@ -421,7 +455,9 @@ private fun Canvas(
         // LayoutEngine only ever dictates x and the layer's y.
         val placeables = measurables.map { it.measure(Constraints()) }
         val width = layout.width.dp.roundToPx()
-        val height = (layout.height + NODE_HEIGHT).dp.roundToPx()
+        // layout.height already reaches the bottom of the lowest bubble, since
+        // it is measured from the same heights these children were measured at.
+        val height = (layout.height + CANVAS_MARGIN).dp.roundToPx()
 
         layout(width, height) {
             placeables.forEachIndexed { index, placeable ->
@@ -432,17 +468,21 @@ private fun Canvas(
     }
 }
 
-/** Matches the height LayoutEngine assumes, so edges land on the bubbles. */
+/**
+ * What LayoutEngine is told a bubble is tall before one has been measured. Only
+ * the first frame uses it; after that the real measurements are fed back.
+ */
 private const val NODE_HEIGHT = 64f
 
-/** How far a dangling answer's stub reaches before stopping at nothing. */
-private const val DANGLING_LENGTH = 40f
+/** Breathing room under the last layer, so it is not flush with the edge. */
+private const val CANVAS_MARGIN = 48f
 
 private data class PaintedEdge(
-    val from: Position,
-    /** Null for a dangling answer: it goes nowhere by definition. */
-    val to: Position?,
-    val text: TextLayoutResult
+    /** Right-angled corners from the source's bottom to the target's top. */
+    val route: List<Point>,
+    val text: TextLayoutResult,
+    /** Half way along the route by length, so the label sits on the line. */
+    val labelAt: Point
 )
 
 @Composable

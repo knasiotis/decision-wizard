@@ -2,6 +2,10 @@ package com.knasiotis.decisionwizard
 
 import com.knasiotis.decisionwizard.layout.EdgeKind
 import com.knasiotis.decisionwizard.layout.LayoutEngine
+import com.knasiotis.decisionwizard.layout.NODE_WIDTH
+import com.knasiotis.decisionwizard.layout.Point
+import com.knasiotis.decisionwizard.layout.Position
+import com.knasiotis.decisionwizard.layout.midpointOf
 import com.knasiotis.decisionwizard.model.Graph
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -132,6 +136,135 @@ class LayoutEngineTest {
         val second = LayoutEngine.layout(graph, strictHeights(graph))
         assertEquals(first.positions, second.positions)
         assertEquals(first.layers, second.layers)
+    }
+
+    /**
+     * The whole point of routing with right angles: a straight line from a
+     * parent to a grandchild runs behind whatever is standing in the layer
+     * between, which reads as an edge into that node rather than past it.
+     */
+    @Test
+    fun `an edge across a layer misses the nodes standing in it`() {
+        val graph = Fixtures.graph(
+            "a",
+            Fixtures.node(
+                "a",
+                Fixtures.answer("e1", "L", "b"),
+                Fixtures.answer("e2", "R", "c"),
+                // Straight past b and c, into the layer below them.
+                Fixtures.answer("e3", "skip", "d")
+            ),
+            Fixtures.node("b", Fixtures.answer("e4", "on", "d")),
+            Fixtures.node("c", Fixtures.answer("e5", "on", "d")),
+            Fixtures.node("d")
+        )
+        val layout = LayoutEngine.layout(graph, strictHeights(graph))
+
+        val long = layout.edges.single { it.answerId == "e3" }
+        assertEquals(EdgeKind.ARROW, long.kind, "two layers is inside MAX_DRAWN_SPAN")
+
+        val blockers = listOf("b", "c").map { layout.positions.getValue(it) }
+        long.route.zipWithNext { from, to ->
+            blockers.forEach { blocker ->
+                assertTrue(
+                    !crosses(from, to, blocker, 64f),
+                    "segment $from -> $to runs through a node at $blocker"
+                )
+            }
+        }
+    }
+
+    /** Not just the layer between: no segment may run over any node at all. */
+    @Test
+    fun `no route runs over a node`() {
+        val graph = Fixtures.example()
+        val layout = LayoutEngine.layout(graph, strictHeights(graph))
+
+        layout.edges.filter { it.kind == EdgeKind.ARROW }.forEach { edge ->
+            edge.route.zipWithNext { from, to ->
+                layout.positions.forEach { (id, node) ->
+                    // The ends touch their own bubbles by definition.
+                    if (id == edge.sourceId || id == edge.targetId) return@forEach
+                    assertTrue(
+                        !crosses(from, to, node, 64f),
+                        "${edge.answerId}: $from -> $to runs over $id"
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `routes are made of right angles only`() {
+        val graph = Fixtures.example()
+        val layout = LayoutEngine.layout(graph, strictHeights(graph))
+
+        layout.edges.filter { it.kind == EdgeKind.ARROW }.forEach { edge ->
+            assertTrue(edge.route.size >= 2, "a drawn edge needs a route")
+            edge.route.zipWithNext { from, to ->
+                assertTrue(
+                    from.x == to.x || from.y == to.y,
+                    "$from -> $to is neither horizontal nor vertical"
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `a route starts under its source and ends on top of its target`() {
+        val graph = Fixtures.example()
+        val layout = LayoutEngine.layout(graph, strictHeights(graph))
+
+        layout.edges.filter { it.kind == EdgeKind.ARROW }.forEach { edge ->
+            val source = layout.positions.getValue(edge.sourceId)
+            val target = layout.positions.getValue(edge.targetId!!)
+            assertEquals(source.x + NODE_WIDTH / 2, edge.route.first().x)
+            assertEquals(source.y + 64f, edge.route.first().y)
+            assertEquals(target.x + NODE_WIDTH / 2, edge.route.last().x)
+            assertEquals(target.y, edge.route.last().y)
+        }
+    }
+
+    /** Only drawn edges carry geometry; a stub is two chips and nothing else. */
+    @Test
+    fun `stubs and dangling answers carry no route`() {
+        val graph = Fixtures.example()
+        val layout = LayoutEngine.layout(graph, strictHeights(graph))
+
+        layout.edges.filter { it.kind != EdgeKind.ARROW }.forEach {
+            assertTrue(it.route.isEmpty(), "${it.answerId} is a ${it.kind} and should not be drawn")
+        }
+    }
+
+    @Test
+    fun `the label sits on the line, not beside it`() {
+        val graph = Fixtures.example()
+        val layout = LayoutEngine.layout(graph, strictHeights(graph))
+
+        layout.edges.filter { it.kind == EdgeKind.ARROW }.forEach { edge ->
+            val middle = midpointOf(edge.route)!!
+            val onSome = edge.route.zipWithNext().any { (from, to) ->
+                val between = { a: Float, b: Float, v: Float ->
+                    v >= minOf(a, b) - 0.01f && v <= maxOf(a, b) + 0.01f
+                }
+                between(from.x, to.x, middle.x) && between(from.y, to.y, middle.y) &&
+                    (from.x == to.x || from.y == to.y)
+            }
+            assertTrue(onSome, "label point $middle is off the route ${edge.route}")
+        }
+    }
+
+    /** Does an axis-aligned segment pass over a node's box? */
+    private fun crosses(from: Point, to: Point, node: Position, height: Float): Boolean {
+        val left = node.x
+        val right = node.x + NODE_WIDTH
+        val top = node.y
+        val bottom = node.y + height
+        val minX = minOf(from.x, to.x)
+        val maxX = maxOf(from.x, to.x)
+        val minY = minOf(from.y, to.y)
+        val maxY = maxOf(from.y, to.y)
+        return maxX > left && minX < right && maxY > top && minY < bottom
     }
 
     @Test

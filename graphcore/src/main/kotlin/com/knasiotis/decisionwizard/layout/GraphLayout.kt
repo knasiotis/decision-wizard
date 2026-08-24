@@ -12,6 +12,9 @@ const val LAYER_V_GAP = 80f
 
 data class Position(val x: Float, val y: Float, val layer: Int, val indexInLayer: Int)
 
+/** A corner of an edge's route, in the same dp space as [Position]. */
+data class Point(val x: Float, val y: Float)
+
 enum class EdgeKind {
     /** Short forward hop — draw a real arrow. */
     ARROW,
@@ -28,7 +31,16 @@ data class RenderEdge(
     val label: String,
     val sourceId: String,
     val targetId: String?,
-    val kind: EdgeKind
+    val kind: EdgeKind,
+    /**
+     * Orthogonal polyline from the bottom of the source to the top of the
+     * target, corner to corner. Empty unless [kind] is [EdgeKind.ARROW].
+     *
+     * Right angles rather than a straight line because a straight line across
+     * two layers runs behind whatever sits in the layer between, which reads as
+     * an edge to that node rather than past it.
+     */
+    val route: List<Point> = emptyList()
 )
 
 data class StubChip(
@@ -68,7 +80,8 @@ object LayoutEngine {
 
         val layers = orderLayers(graph, allDepths)
         val positions = place(layers, nodeHeightOf)
-        val (edges, chips) = classifyEdges(graph, allDepths, backEdges)
+        val (edges, chips) =
+            classifyEdges(graph, allDepths, backEdges, layers, positions, nodeHeightOf)
 
         // Must agree with the canvas width `place` centred each row against.
         val widest = layers.maxOfOrNull { it.size } ?: 0
@@ -216,10 +229,136 @@ object LayoutEngine {
         return positions
     }
 
+    /**
+     * Right-angled route from the bottom of the source to the top of the target.
+     *
+     * A hop to the next layer only has to dog-leg inside the empty band between
+     * the two layers. A hop across a layer has to get past whatever is standing
+     * in it, so it runs down a corridor — the middle of a gap between two of
+     * that layer's nodes, or just outside the row — instead of straight through.
+     */
+    private fun routeBetween(
+        source: Position,
+        sourceHeight: Float,
+        target: Position,
+        layers: List<List<String>>,
+        positions: Map<String, Position>,
+        nodeHeightOf: (String) -> Float
+    ): List<Point> {
+        val fromX = source.x + NODE_WIDTH / 2
+        val toX = target.x + NODE_WIDTH / 2
+        val startY = source.y + sourceHeight
+        val endY = target.y
+
+        val crossed = (source.layer + 1) until target.layer
+        val enterY = bandBelow(source.layer, layers, positions, nodeHeightOf)
+        if (crossed.isEmpty()) {
+            // The empty band rather than the midpoint of the two nodes: the
+            // source may be the short one in its layer, and a run level with a
+            // taller neighbour would cut straight through it.
+            return simplify(
+                listOf(
+                    Point(fromX, startY),
+                    Point(fromX, enterY),
+                    Point(toX, enterY),
+                    Point(toX, endY)
+                )
+            )
+        }
+
+        val corridorX = corridorThrough(crossed, layers, positions, (fromX + toX) / 2)
+        val leaveY = bandBelow(target.layer - 1, layers, positions, nodeHeightOf)
+        return simplify(
+            listOf(
+                Point(fromX, startY),
+                Point(fromX, enterY),
+                Point(corridorX, enterY),
+                Point(corridorX, leaveY),
+                Point(toX, leaveY),
+                Point(toX, endY)
+            )
+        )
+    }
+
+    /** Middle of the empty band between a layer and the one under it. */
+    private fun bandBelow(
+        layerIndex: Int,
+        layers: List<List<String>>,
+        positions: Map<String, Position>,
+        nodeHeightOf: (String) -> Float
+    ): Float {
+        val bottom = layers.getOrNull(layerIndex).orEmpty()
+            .mapNotNull { id -> positions[id]?.let { it.y + nodeHeightOf(id) } }
+            .maxOrNull() ?: 0f
+        val next = layers.getOrNull(layerIndex + 1).orEmpty()
+            .firstNotNullOfOrNull { positions[it]?.y }
+            ?: (bottom + LAYER_V_GAP)
+        return (bottom + next) / 2f
+    }
+
+    /**
+     * An x with no node on it in any of [crossed], as near [preferredX] as
+     * possible. Candidates are the middle of every gap between two neighbours
+     * and the outsides of the widest row, which is why nothing has to move to
+     * make room: the gaps are already there.
+     */
+    private fun corridorThrough(
+        crossed: IntRange,
+        layers: List<List<String>>,
+        positions: Map<String, Position>,
+        preferredX: Float
+    ): Float {
+        val spans = crossed
+            .flatMap { layers.getOrNull(it).orEmpty() }
+            .mapNotNull { positions[it] }
+            .map { it.x to it.x + NODE_WIDTH }
+            .sortedBy { it.first }
+
+        val merged = mutableListOf<Pair<Float, Float>>()
+        spans.forEach { (start, end) ->
+            val last = merged.lastOrNull()
+            if (last != null && start <= last.second) {
+                merged[merged.lastIndex] = last.first to maxOf(last.second, end)
+            } else {
+                merged += start to end
+            }
+        }
+        if (merged.isEmpty()) return preferredX
+
+        val candidates = mutableListOf(
+            merged.first().first - NODE_H_GAP / 2,
+            merged.last().second + NODE_H_GAP / 2
+        )
+        for (i in 0 until merged.size - 1) {
+            candidates += (merged[i].second + merged[i + 1].first) / 2
+        }
+        return candidates.minBy { kotlin.math.abs(it - preferredX) }
+    }
+
+    /** Drops repeated and collinear corners, so a straight run stays one line. */
+    private fun simplify(points: List<Point>): List<Point> {
+        val kept = mutableListOf<Point>()
+        points.forEach { point ->
+            if (kept.lastOrNull() != point) kept += point
+        }
+        var i = 1
+        while (i < kept.size - 1) {
+            val before = kept[i - 1]
+            val after = kept[i + 1]
+            val redundant = (before.x == kept[i].x && kept[i].x == after.x) ||
+                (before.y == kept[i].y && kept[i].y == after.y)
+            if (redundant) kept.removeAt(i) else i++
+        }
+        return kept
+    }
+
     private fun classifyEdges(
         graph: Graph,
         depths: Map<String, Int>,
-        backEdges: Set<String>
+        backEdges: Set<String>,
+        layers: List<List<String>>,
+        positions: Map<String, Position>,
+        nodeHeightOf: (String) -> Float
     ): Pair<List<RenderEdge>, List<StubChip>> {
         val edges = mutableListOf<RenderEdge>()
         val chips = mutableListOf<StubChip>()
@@ -241,9 +380,19 @@ object LayoutEngine {
                 val span = to - from
                 val drawn = answer.id !in backEdges && span in 1..MAX_DRAWN_SPAN
 
+                val source = positions[node.id]
+                val destination = positions[target]
                 edges += RenderEdge(
                     answer.id, answer.label, node.id, target,
-                    if (drawn) EdgeKind.ARROW else EdgeKind.STUB
+                    if (drawn) EdgeKind.ARROW else EdgeKind.STUB,
+                    route = if (drawn && source != null && destination != null) {
+                        routeBetween(
+                            source, nodeHeightOf(node.id), destination,
+                            layers, positions, nodeHeightOf
+                        )
+                    } else {
+                        emptyList()
+                    }
                 )
 
                 if (!drawn) {
@@ -264,4 +413,30 @@ object LayoutEngine {
         }
         return edges to chips
     }
+}
+
+/**
+ * The point half way along a route by length, which is where an answer label
+ * belongs. The middle of the bounding box would fall off the line whenever the
+ * route dog-legs.
+ */
+fun midpointOf(route: List<Point>): Point? {
+    if (route.isEmpty()) return null
+    if (route.size == 1) return route.first()
+
+    val lengths = route.zipWithNext { a, b ->
+        kotlin.math.abs(b.x - a.x) + kotlin.math.abs(b.y - a.y)
+    }
+    val half = lengths.sum() / 2f
+    var travelled = 0f
+    lengths.forEachIndexed { i, length ->
+        if (travelled + length >= half) {
+            val t = if (length == 0f) 0f else (half - travelled) / length
+            val a = route[i]
+            val b = route[i + 1]
+            return Point(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)
+        }
+        travelled += length
+    }
+    return route.last()
 }
