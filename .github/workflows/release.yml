@@ -134,9 +134,23 @@ jobs:
           # touched, not what changed for the person installing it.
           NOTES="release-notes/${GITHUB_REF_NAME}.md"
           if [ -f "$NOTES" ]; then
+            # The template comment at the top of the file is for whoever writes
+            # the notes, not for whoever installs the build. GitHub hides HTML
+            # comments when it renders markdown, but the raw body is what the
+            # API and the app stores hand out, so strip it here rather than
+            # trusting every reader to. Second sed drops the blank lines the
+            # first one leaves at the top.
+            PUBLISHED="$RUNNER_TEMP/notes.md"
+            sed '/<!--/,/-->/d' "$NOTES" | sed '/./,$!d' > "$PUBLISHED"
+            # An unterminated comment deletes everything after it, which would
+            # publish an empty release rather than a slightly untidy one.
+            if [ ! -s "$PUBLISHED" ]; then
+              echo "::warning::stripping comments emptied $NOTES, publishing it as written"
+              cp "$NOTES" "$PUBLISHED"
+            fi
             gh release create "$GITHUB_REF_NAME" \
               --title "$GITHUB_REF_NAME" \
-              --notes-file "$NOTES" \
+              --notes-file "$PUBLISHED" \
               "decision-wizard-${GITHUB_REF_NAME}.apk"
           else
             echo "::warning::$NOTES is missing, falling back to generated notes"

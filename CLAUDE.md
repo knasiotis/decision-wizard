@@ -494,6 +494,17 @@ one-line bullets, each ending with **the commit id in brackets**. Omit a section
 that has nothing in it. Write the file before tagging — the ids have to exist
 already, so the notes commit is the last one before the tag.
 
+**The template comment at the top of each file is stripped at publish time**, so
+it can stay where it is useful — in front of whoever is writing the notes —
+without reaching whoever is installing the build. GitHub hides HTML comments when
+it renders markdown, so v0.5.6's release *page* looked right, but the raw body is
+what the API and the app stores hand out and it carried the comment verbatim.
+
+Stripping is `sed '/<!--/,/-->/d'` plus a second `sed` for the blank lines it
+leaves at the top. An unterminated comment would delete the rest of the file, so
+an empty result falls back to publishing the file as written with a warning —
+slightly untidy notes beat empty ones.
+
 This is separate from `fastlane/…/changelogs/<versionCode>.txt` on purpose. Both
 describe the same release, but the fastlane file is what F-Droid users read and
 carries no commit ids.
