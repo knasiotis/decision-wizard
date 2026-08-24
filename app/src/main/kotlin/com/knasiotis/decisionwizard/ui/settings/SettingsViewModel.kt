@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.knasiotis.decisionwizard.data.ChatRetention
 import com.knasiotis.decisionwizard.data.FileGateway
+import com.knasiotis.decisionwizard.data.DrawnSpan
 import com.knasiotis.decisionwizard.data.LaunchBehaviour
 import com.knasiotis.decisionwizard.data.LibraryRepository
 import com.knasiotis.decisionwizard.data.SettingsStore
@@ -43,6 +44,13 @@ class SettingsViewModel(
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
+
+    val drawnSpan: StateFlow<Int> = settings.drawnSpan
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DrawnSpan.DEFAULT)
+
+    fun setDrawnSpan(span: Int) {
+        viewModelScope.launch { settings.setDrawnSpan(span) }
+    }
 
     fun setLaunchBehaviour(value: LaunchBehaviour) {
         viewModelScope.launch { settings.setLaunchBehaviour(value) }

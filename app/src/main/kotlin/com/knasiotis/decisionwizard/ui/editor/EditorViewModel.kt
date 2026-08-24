@@ -3,6 +3,8 @@ package com.knasiotis.decisionwizard.ui.editor
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.knasiotis.decisionwizard.data.LibraryRepository
+import com.knasiotis.decisionwizard.data.SettingsStore
+import com.knasiotis.decisionwizard.data.DrawnSpan
 import com.knasiotis.decisionwizard.editor.DeleteOps
 import com.knasiotis.decisionwizard.editor.GraphEditor
 import com.knasiotis.decisionwizard.model.Answer
@@ -15,6 +17,8 @@ import com.knasiotis.decisionwizard.model.newId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
@@ -56,8 +60,17 @@ data class EditorUiState(
 class EditorViewModel(
     private val repository: LibraryRepository,
     private val graphId: String,
-    private val appScope: CoroutineScope
+    private val appScope: CoroutineScope,
+    settings: SettingsStore
 ) : ViewModel() {
+
+    /**
+     * How far a link may reach before the canvas shows chips instead of a line.
+     * Read here rather than in the composable so the canvas has it on the first
+     * frame instead of laying out once at the default and again a frame later.
+     */
+    val drawnSpan: StateFlow<Int> = settings.drawnSpan
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DrawnSpan.DEFAULT)
 
     private var editor: GraphEditor? = null
     private var announcements = 0L

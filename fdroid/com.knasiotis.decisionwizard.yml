@@ -23,9 +23,9 @@ RepoType: git
 Repo: https://github.com/knasiotis/decision-wizard.git
 
 Builds:
-  - versionName: 0.5.10
-    versionCode: 510
-    commit: v0.5.10
+  - versionName: 0.5.11
+    versionCode: 511
+    commit: v0.5.11
     subdir: app
     gradle:
       - yes
@@ -34,5 +34,5 @@ Builds:
 # tag called "0.5.7" and never finds it.
 AutoUpdateMode: Version v%v
 UpdateCheckMode: Tags
-CurrentVersion: 0.5.10
-CurrentVersionCode: 510
+CurrentVersion: 0.5.11
+CurrentVersionCode: 511

@@ -1,0 +1,14 @@
+Editor fixes, and a new setting.
+
+* Answer labels are no longer hidden behind question bubbles. They now sit in the
+  clear band between two rows, which nothing else occupies, instead of wherever
+  the line happened to be halfway along.
+* Lines carry arrowheads, so which way a branch runs is readable — including on
+  the long horizontal stretches, which gained a marker of their own.
+* New setting, under Settings > Graphs: choose whether a link reaching two
+  questions ahead is drawn as a line, or shown as a pair of chips like the longer
+  ones already are. Lines threading between other questions can be hard to
+  follow; chips are always legible.
+* The back button leaves the editor again. After tapping a chip it used to rewind
+  the jump instead, which read as undoing an edit. The way back from a jump is
+  the chip waiting on the node you landed on.

@@ -218,7 +218,7 @@ fun DecisionWizardApp(
                 val vm: EditorViewModel = viewModel(
                     key = "editor:$graphId",
                     factory = viewModelFactory {
-                        initializer { EditorViewModel(app.repository, graphId, app.appScope) }
+                        initializer { EditorViewModel(app.repository, graphId, app.appScope, app.settings) }
                     }
                 )
                 EditorScreen(viewModel = vm, onBack = { navController.popBackStack() })

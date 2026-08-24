@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.knasiotis.decisionwizard.BuildConfig
 import com.knasiotis.decisionwizard.data.ChatRetention
+import com.knasiotis.decisionwizard.data.DrawnSpan
 import com.knasiotis.decisionwizard.data.LaunchBehaviour
 
 /**
@@ -53,6 +54,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, modifier: Modifier = Modifier) 
 
     val retentionDays by viewModel.chatRetentionDays.collectAsStateWithLifecycle()
     val graphCount by viewModel.graphCount.collectAsStateWithLifecycle()
+    val drawnSpan by viewModel.drawnSpan.collectAsStateWithLifecycle()
     val backupName by viewModel.backupName.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
 
@@ -137,6 +139,19 @@ fun SettingsScreen(viewModel: SettingsViewModel, modifier: Modifier = Modifier) 
             }
 
             SectionHeader("Graphs")
+
+            Setting(
+                title = "Draw links as lines",
+                description = DrawnSpan.detail(drawnSpan)
+            ) {
+                DrawnSpan.CHOICES.forEach { span ->
+                    Choice(
+                        label = DrawnSpan.label(span),
+                        selected = drawnSpan == span,
+                        onClick = { viewModel.setDrawnSpan(span) }
+                    )
+                }
+            }
 
             Setting(
                 title = "Back up every graph",

@@ -144,7 +144,11 @@ every time and still never persisted.
 
 Edge classification:
 
-- Forward hop spanning 1..`MAX_DRAWN_SPAN` layers → **`ARROW`**, drawn.
+- Forward hop spanning 1..`maxDrawnSpan` layers → **`ARROW`**, drawn. The span is
+  a **setting** (`DrawnSpan`, default 2, the only other choice being 1) because a
+  line crossing a whole layer has to thread a corridor between other nodes and is
+  hard to follow however it is drawn. `MAX_DRAWN_SPAN` remains the default, not
+  the rule.
 - Anything else (back-edge, cross-edge, long jump) → **`STUB`**, not drawn.
 - No target → **`DANGLING`**, short arrow to nowhere.
 
@@ -168,6 +172,14 @@ that node rather than past it.
 test honest rather than pinning down which corridor is chosen — like the
 barycenter order, that is a heuristic.
 
+Every drawn edge carries an **arrowhead at the target**, and a second one a
+quarter of the way along its longest horizontal run. The long horizontal stretch
+between two layers is the part that reads as ambiguous — a line arriving at a
+node says nothing about which way it flows — and a quarter along keeps it clear
+of the label, which is centred on that same run. Heads are filled triangles, not
+stroked chevrons: a stroke thins out as the canvas zooms out and stops being
+legible exactly when the graph is small enough to need it.
+
 A `STUB` emits **two** chips, and both are required:
 
 - On the source: `Yes ↩ Restart router`
@@ -177,8 +189,10 @@ The inbound chip is not decoration. Without it a user can land on a node with no
 idea anything points at it, and will restructure or delete it wrongly.
 
 Tapping either chip animates the viewport to the other end and flashes the
-target node for ~500ms. Keep a small viewport back-stack so a second tap returns
-the user to where they were.
+target node for ~500ms. **The way back is the reciprocal chip waiting on the node
+you landed on**, not a viewport back-stack. There was one, wired into the editor's
+back button; it made back slide the canvas while the screen stayed put, which
+reads as undoing an *edit*. Removed in v0.5.11 — back leaves the editor.
 
 **The jump is clamped to keep the canvas on screen.** Centring a node on a graph
 that already fits the viewport shoves the rest of it off to one side, and the
@@ -686,7 +700,7 @@ Note that `README.md` says "the app asks for nothing", which is true of the
 manifest but not literally true of the built APK's permission list.
 
 
-## Three bugs worth not re-introducing
+## Four bugs worth not re-introducing
 
 Both shipped in v0.5.6 as fixes and came back, because each fix addressed the
 symptom and left the cause. Both now have tests that fail against the old code —
@@ -735,6 +749,31 @@ still exact rather than merely stale.
 **Do not reintroduce a computed position, and do not add a scale term to
 `centreBy`.** Four releases say it does not work, and the failure is invisible
 from the JVM: every calculated version passed its tests.
+
+### A label belongs in the band, not on the midpoint
+
+**Symptom:** answer labels — and the lines near them — hidden behind bubbles,
+worst around short endpoint nodes.
+
+**Cause:** the label sat at `midpointOf(route)`, the midpoint by length. That
+often lands on a *vertical* segment running down beside a bubble, and a label
+like "It posts but will not load Windows" is many times wider than the 32dp gap
+between two columns, so it vanished behind whatever stood next to it. Short
+bubbles put more of their route alongside taller neighbours, which is why
+endpoints were where it showed.
+
+**Fix:** `labelAnchorOf` puts the label on the middle of the route's longest
+**horizontal** run. That run lies in the empty band between two layers, and the
+band is clear of bubbles across the full width of the canvas, so a label centred
+there cannot collide with one however wide the text is. A route with no
+horizontal run at all falls back to the midpoint.
+
+`LayoutEngineTest."an answer label never sits over a bubble"` checks this with a
+label wider than a node, and fails against the old anchor.
+
+The label-vs-label nudging in `:app` stays within about 34dp of the anchor, and
+`LAYER_V_GAP` is 80dp, so nudging cannot push a label out of the band and back
+onto a bubble. **Keep it that way** if the nudge ever grows more steps.
 
 ### Edges must be drawn under every label, not just their own
 
@@ -1054,8 +1093,8 @@ recomposition is driven from `:app` and the core stays pure.
 ## Current state
 
 **Everything through v0.5.10 is released.** `main` carries the work and the tags;
-the last published build is **v0.5.10** (versionCode 510), signed with the
-expected key. `:graphcore` is green at **112** tests. `README.md` is current.
+the last published build is **v0.5.11** (versionCode 511), signed with the
+expected key. `:graphcore` is green at **114** tests. `README.md` is current.
 
 The v0.5.6–v0.5.10 run, in short:
 
@@ -1066,6 +1105,7 @@ The v0.5.6–v0.5.10 run, in short:
 | v0.5.8 | Stub-jump attempt, branches drawn apart, chat back arrow |
 | v0.5.9 | Stub-jump attempt |
 | v0.5.10 | Stub jump **fixed, and confirmed working on a device** |
+| v0.5.11 | Labels out from behind bubbles, arrowheads, a stub-span setting, back leaves the editor |
 
 Both halves of the release pipeline are proven: notes come from
 `release-notes/<tag>.md`, and the template comment is stripped before publishing.

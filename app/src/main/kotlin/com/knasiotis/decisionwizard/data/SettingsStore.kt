@@ -42,12 +42,34 @@ object ChatRetention {
         input.trim().toIntOrNull()?.takeIf { it in 1..MAX_DAYS }
 }
 
+/** How far a link may reach before the canvas draws chips instead of a line. */
+object DrawnSpan {
+    const val ONE_LAYER = 1
+    const val TWO_LAYERS = 2
+    const val DEFAULT = TWO_LAYERS
+
+    fun label(span: Int): String = when (span) {
+        ONE_LAYER -> "Only to the next question"
+        else -> "Up to two questions ahead"
+    }
+
+    fun detail(span: Int): String = when (span) {
+        ONE_LAYER -> "Anything further becomes a pair of chips. Fewer lines, and none of them cross a row of questions."
+        else -> "A link two questions ahead is drawn as a line that threads between the questions in between."
+    }
+
+    val CHOICES = listOf(ONE_LAYER, TWO_LAYERS)
+
+    fun sanitise(span: Int): Int = if (span == ONE_LAYER) ONE_LAYER else TWO_LAYERS
+}
+
 private val Context.preferences by preferencesDataStore(name = "settings")
 
 class SettingsStore(private val context: Context) {
 
     private val launchKey = stringPreferencesKey("launch_behaviour")
     private val retentionKey = intPreferencesKey("chat_retention_days")
+    private val drawnSpanKey = intPreferencesKey("editor_drawn_span")
 
     val launchBehaviour: Flow<LaunchBehaviour> = context.preferences.data.map { prefs ->
         // An unrecognised value means a downgrade or a hand-edited file; fall
@@ -59,6 +81,18 @@ class SettingsStore(private val context: Context) {
     /** Defaults to keeping chats. Deleting the user's history is never the default. */
     val chatRetentionDays: Flow<Int> = context.preferences.data.map { prefs ->
         prefs[retentionKey]?.takeIf { it >= 0 } ?: ChatRetention.FOREVER
+    }
+
+    /**
+     * Defaults to drawing two-layer links as lines, which is what every release
+     * before the setting existed did.
+     */
+    val drawnSpan: Flow<Int> = context.preferences.data.map { prefs ->
+        DrawnSpan.sanitise(prefs[drawnSpanKey] ?: DrawnSpan.DEFAULT)
+    }
+
+    suspend fun setDrawnSpan(span: Int) {
+        context.preferences.edit { it[drawnSpanKey] = DrawnSpan.sanitise(span) }
     }
 
     suspend fun setLaunchBehaviour(value: LaunchBehaviour) {
