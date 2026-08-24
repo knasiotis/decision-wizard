@@ -1,0 +1,5 @@
+A follow-up to the stub chip fix in 0.5.8.
+
+A jump taken before the canvas had finished measuring itself had no screen size
+to centre against, and moved the graph off to the left instead of onto the node.
+The jump now waits for a measurement rather than moving to a guessed position.

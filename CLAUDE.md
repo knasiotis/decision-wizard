@@ -723,6 +723,16 @@ reintroduced containment rule breaks first. **Do not add one back**, and do not
 move the arithmetic into `:app` — it is pure float maths, and being unreachable
 from a JVM test is why this took three attempts.
 
+**A fourth failure mode, and the one the arithmetic cannot defend against: a
+viewport of zero.** `centreOn` is told the screen width; given `0` it returns the
+pan that puts the node at screen x = 0, dragging the whole canvas off to the
+left. That is indistinguishable from the old bug, and it is what a jump taken
+before the canvas has been measured produces. The editor therefore asks `panFor`
+for a destination and only moves when it gets one, holding the request in
+`pendingFocus` and honouring it when a real size arrives. **Never centre against
+an unmeasured viewport** — moving to a wrong place reads as a broken jump, while
+waiting a frame reads as nothing at all.
+
 ### Edges must be drawn under every label, not just their own
 
 **Symptom:** lines drawn straight across the text of an edge label.
@@ -1054,7 +1064,10 @@ expected key, and its GitHub notes came from `release-notes/v0.5.6.md`, so the
 comment stripping is proven as well as the `--notes-file` path. One of those two
 fixes was wrong, which is what v0.5.8 is.
 
-**The tree is on v0.5.8**, untagged: the stub-chip jump done properly, branches
+**v0.5.8 is released**, and the stub jump was still reported wrong on a device
+afterwards — see the zero-viewport note above, which v0.5.9 guards against.
+
+Previously, the tree was on v0.5.8: the stub-chip jump done properly, branches
 drawn apart from each other, and the chat back arrow that had been sitting
 unversioned on `main`. `appVersionName=0.5.8` gives versionCode **508**, with
 `changelogs/508.txt` and `fdroid/…yml` agreeing.
