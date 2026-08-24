@@ -5,6 +5,8 @@ import com.knasiotis.decisionwizard.layout.LayoutEngine
 import com.knasiotis.decisionwizard.layout.NODE_WIDTH
 import com.knasiotis.decisionwizard.layout.Point
 import com.knasiotis.decisionwizard.layout.Position
+import com.knasiotis.decisionwizard.layout.RenderEdge
+import com.knasiotis.decisionwizard.layout.labelAnchorOf
 import com.knasiotis.decisionwizard.layout.midpointOf
 import com.knasiotis.decisionwizard.model.Graph
 import com.knasiotis.decisionwizard.model.GraphValidator
@@ -411,10 +413,92 @@ class LayoutEngineTest {
         return maxX > left && minX < right && maxY > top && minY < bottom
     }
 
+    /**
+     * A hop across a layer has to thread a corridor between whatever is standing
+     * in the way, and that is hard to follow however it is drawn. Lowering the
+     * span turns those into chips instead; it must not disturb the plain
+     * one-layer hops, which are the majority.
+     */
+    @Test
+    fun `lowering the drawn span turns two-layer hops into chips`() {
+        val graph = demoGraph()
+        val two = LayoutEngine.layout(graph, wrappedHeights(graph), maxDrawnSpan = 2)
+        val one = LayoutEngine.layout(graph, wrappedHeights(graph), maxDrawnSpan = 1)
+
+        fun spanOf(layout: com.knasiotis.decisionwizard.layout.GraphLayout, edge: RenderEdge): Int {
+            val from = layout.positions.getValue(edge.sourceId).layer
+            val to = layout.positions.getValue(edge.targetId!!).layer
+            return to - from
+        }
+
+        assertTrue(
+            two.edges.any { it.kind == EdgeKind.ARROW && spanOf(two, it) == 2 },
+            "the demo graph needs a two-layer hop for this to be testing anything"
+        )
+        assertTrue(
+            one.edges.none { it.kind == EdgeKind.ARROW && spanOf(one, it) == 2 },
+            "no two-layer hop should still be drawn as a line"
+        )
+
+        // Every one-layer hop drawn before is still drawn.
+        val singlesBefore = two.edges.filter { it.kind == EdgeKind.ARROW && spanOf(two, it) == 1 }
+        val singlesAfter = one.edges.filter { it.kind == EdgeKind.ARROW && spanOf(one, it) == 1 }
+        assertEquals(
+            singlesBefore.map { it.answerId }.toSet(),
+            singlesAfter.map { it.answerId }.toSet(),
+            "lowering the span should not disturb the one-layer hops"
+        )
+
+        // What stopped being a line became a pair of chips, not nothing.
+        assertTrue(one.chips.size > two.chips.size, "the dropped hops must become chips")
+        one.edges.filter { it.kind == EdgeKind.STUB }.forEach { edge ->
+            assertTrue(
+                one.chips.any { it.onNodeId == edge.sourceId && it.otherNodeId == edge.targetId },
+                "${edge.answerId} has no outgoing chip"
+            )
+            assertTrue(
+                one.chips.any { it.onNodeId == edge.targetId && it.otherNodeId == edge.sourceId },
+                "${edge.answerId} has no inbound chip"
+            )
+        }
+    }
+
+    /**
+     * A label is far wider than the gap between two columns, so anchoring it
+     * anywhere but the empty band between layers hides it behind a bubble. This
+     * is checked with a label wider than a node, which is the case that used to
+     * disappear.
+     */
+    @Test
+    fun `an answer label never sits over a bubble`() {
+        listOf(Fixtures.example(), demoGraph()).forEach { graph ->
+            val heightOf = wrappedHeights(graph)
+            val layout = LayoutEngine.layout(graph, heightOf)
+
+            layout.edges.filter { it.kind == EdgeKind.ARROW }.forEach { edge ->
+                val anchor = labelAnchorOf(edge.route) ?: return@forEach
+                // Deliberately wider than NODE_WIDTH, and a plausible text height.
+                val halfWidth = 130f
+                val halfHeight = 9f
+                layout.positions.forEach { (id, node) ->
+                    val overlaps = anchor.x + halfWidth > node.x &&
+                        anchor.x - halfWidth < node.x + NODE_WIDTH &&
+                        anchor.y + halfHeight > node.y &&
+                        anchor.y - halfHeight < node.y + heightOf(id)
+                    assertTrue(
+                        !overlaps,
+                        "${graph.name}/${edge.answerId}: label at $anchor sits over $id"
+                    )
+                }
+            }
+        }
+    }
+
     @Test
     fun `empty graph does not blow up`() {
         val graph = Graph(graphId = "g", name = "empty")
-        val layout = LayoutEngine.layout(graph) { 64f }
+        // Not a trailing lambda: maxDrawnSpan is the last parameter now.
+        val layout = LayoutEngine.layout(graph, { 64f })
         assertTrue(layout.positions.isEmpty())
     }
 }

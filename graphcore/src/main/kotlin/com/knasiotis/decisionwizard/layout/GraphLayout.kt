@@ -3,8 +3,15 @@ package com.knasiotis.decisionwizard.layout
 import com.knasiotis.decisionwizard.model.Graph
 import com.knasiotis.decisionwizard.model.GraphValidator
 
-/** Tune once you see real graphs. Spans longer than this become stub chips. */
+/**
+ * Spans longer than this become stub chips. The default; the editor lets the
+ * user lower it to 1, because a line that crosses a whole layer has to thread a
+ * corridor between other nodes and can be hard to follow however it is drawn.
+ */
 const val MAX_DRAWN_SPAN = 2
+
+/** What the setting may be set to. One layer only, or up to two. */
+val DRAWN_SPAN_CHOICES = listOf(1, 2)
 
 const val NODE_WIDTH = 200f
 const val NODE_H_GAP = 32f
@@ -69,7 +76,12 @@ data class GraphLayout(
  */
 object LayoutEngine {
 
-    fun layout(graph: Graph, nodeHeightOf: (String) -> Float = { 64f }): GraphLayout {
+    fun layout(
+        graph: Graph,
+        nodeHeightOf: (String) -> Float = { 64f },
+        /** Trailing, so the common `layout(graph) { height }` call still reads well. */
+        maxDrawnSpan: Int = MAX_DRAWN_SPAN
+    ): GraphLayout {
         val reachable = GraphValidator.reachableFrom(graph, graph.rootNodeId)
         val backEdges = findBackEdges(graph)
         val depths = assignDepths(graph, backEdges, reachable)
@@ -80,8 +92,9 @@ object LayoutEngine {
 
         val layers = orderLayers(graph, allDepths)
         val positions = place(layers, nodeHeightOf)
-        val (edges, chips) =
-            classifyEdges(graph, allDepths, backEdges, layers, positions, nodeHeightOf)
+        val (edges, chips) = classifyEdges(
+            graph, allDepths, backEdges, layers, positions, nodeHeightOf, maxDrawnSpan
+        )
 
         // Must agree with the canvas width `place` centred each row against.
         val widest = layers.maxOfOrNull { it.size } ?: 0
@@ -383,7 +396,8 @@ object LayoutEngine {
         backEdges: Set<String>,
         layers: List<List<String>>,
         positions: Map<String, Position>,
-        nodeHeightOf: (String) -> Float
+        nodeHeightOf: (String) -> Float,
+        maxDrawnSpan: Int
     ): Pair<List<RenderEdge>, List<StubChip>> {
         val edges = mutableListOf<RenderEdge>()
         val chips = mutableListOf<StubChip>()
@@ -398,7 +412,7 @@ object LayoutEngine {
                 val to = candidate.targetNodeId ?: return@filter false
                 if (graph.byId[to] == null) return@filter false
                 val span = (depths[to] ?: 0) - here
-                candidate.id !in backEdges && span in 1..MAX_DRAWN_SPAN
+                candidate.id !in backEdges && span in 1..maxDrawnSpan
             }
             val slotOf = drawnAnswers.withIndex().associate { (i, a) -> a.id to i }
             val slots = drawnAnswers.size
@@ -417,7 +431,7 @@ object LayoutEngine {
                 val from = depths[node.id] ?: 0
                 val to = depths[target] ?: 0
                 val span = to - from
-                val drawn = answer.id !in backEdges && span in 1..MAX_DRAWN_SPAN
+                val drawn = answer.id !in backEdges && span in 1..maxDrawnSpan
 
                 val source = positions[node.id]
                 val destination = positions[target]
@@ -456,9 +470,32 @@ object LayoutEngine {
 }
 
 /**
- * The point half way along a route by length, which is where an answer label
- * belongs. The middle of the bounding box would fall off the line whenever the
- * route dog-legs.
+ * Where an answer's label belongs on its route: the middle of its longest
+ * horizontal run, or the midpoint by length when it has none.
+ *
+ * The horizontal run is the part that lies in the empty band between two layers,
+ * and that band is clear of bubbles across the **whole width** of the canvas. A
+ * label centred there cannot end up behind a node however wide the text is.
+ *
+ * The midpoint by length cannot promise that. It often lands on a vertical
+ * segment running down beside a bubble, and an answer label — "It posts but will
+ * not load Windows" — is many times wider than the 32dp gap between two columns,
+ * so it disappears behind whatever is standing next to it. Short bubbles suffer
+ * worst, which is why endpoints were where this showed up.
+ */
+fun labelAnchorOf(route: List<Point>): Point? {
+    if (route.isEmpty()) return null
+    val longestFlat = route.zipWithNext()
+        .filter { (a, b) -> a.y == b.y && a.x != b.x }
+        .maxByOrNull { (a, b) -> kotlin.math.abs(b.x - a.x) }
+    longestFlat?.let { (a, b) -> return Point((a.x + b.x) / 2f, a.y) }
+    return midpointOf(route)
+}
+
+/**
+ * The point half way along a route by length. Kept because a route with no
+ * horizontal run at all still needs somewhere to put the label. The middle of
+ * the bounding box would fall off the line whenever the route dog-legs.
  */
 fun midpointOf(route: List<Point>): Point? {
     if (route.isEmpty()) return null

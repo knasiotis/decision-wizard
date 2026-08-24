@@ -57,6 +57,9 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
@@ -78,7 +81,7 @@ import com.knasiotis.decisionwizard.layout.NODE_WIDTH
 import com.knasiotis.decisionwizard.layout.Point
 import com.knasiotis.decisionwizard.layout.StubChip
 import com.knasiotis.decisionwizard.layout.Viewport
-import com.knasiotis.decisionwizard.layout.midpointOf
+import com.knasiotis.decisionwizard.layout.labelAnchorOf
 import com.knasiotis.decisionwizard.model.Graph
 import com.knasiotis.decisionwizard.model.Issue
 import com.knasiotis.decisionwizard.ui.common.NameDialog
@@ -100,9 +103,6 @@ fun EditorScreen(
     // same node can be pointed at twice running.
     var focused by remember { mutableStateOf<String?>(null) }
     var focusKey by remember { mutableLongStateOf(0L) }
-
-    // Where a jump came from, so a second tap on a stub chip comes back.
-    val cameFrom = remember { mutableStateListOf<Offset>() }
 
     // Where the canvas is gliding to, if anywhere.
     var target by remember { mutableStateOf<Offset?>(null) }
@@ -127,9 +127,11 @@ fun EditorScreen(
     // its height does not depend on where it was placed.
     val heights = remember { mutableStateMapOf<String, Float>() }
     val graph = ui.graph
-    val layout = remember(graph, heights.toMap()) {
+    val drawnSpan by viewModel.drawnSpan.collectAsStateWithLifecycle()
+    val layout = remember(graph, heights.toMap(), drawnSpan) {
         graph?.let { subject ->
-            LayoutEngine.layout(subject) { id -> heights[id] ?: NODE_HEIGHT }
+            // Not a trailing lambda: maxDrawnSpan is the last parameter.
+            LayoutEngine.layout(subject, { id -> heights[id] ?: NODE_HEIGHT }, drawnSpan)
         }
     }
 
@@ -141,12 +143,11 @@ fun EditorScreen(
     // would make experiments permanent; silently discarding would lose
     // hand-authored work. Only ask when there is actually something at stake.
     fun leave() {
-        // A jump is somewhere the user was taken, so back should undo that
-        // first rather than leaving the screen outright.
-        if (cameFrom.isNotEmpty()) {
-            target = cameFrom.removeAt(cameFrom.lastIndex)
-            return
-        }
+        // Back leaves the editor. It used to rewind the last stub-chip jump
+        // first, on the theory that a jump is somewhere the user was taken — but
+        // a canvas that slides while the screen stays put reads as an undo of
+        // the edit, not of the camera, and the way back from a jump is already
+        // the reciprocal chip waiting on the node you landed on.
         if (ui.dirty) confirmingExit = true else onBack()
     }
 
@@ -176,7 +177,7 @@ fun EditorScreen(
         )
     }
 
-    fun lookAt(nodeId: String, remember: Boolean) {
+    fun lookAt(nodeId: String) {
         val destination = panFor(nodeId)
         if (destination == null) {
             // Never move on a guess. Moving to a wrong place reads as a broken
@@ -184,7 +185,6 @@ fun EditorScreen(
             pendingFocus = nodeId
             return
         }
-        if (remember) cameFrom.add(pan)
         // Pin the node to the middle, and do nothing else. `scale` is never
         // written, so the zoom the user set is preserved; nothing is clamped, so
         // a node near the edge of the graph still reaches the middle even though
@@ -201,7 +201,7 @@ fun EditorScreen(
         val waiting = pendingFocus ?: return@LaunchedEffect
         if (panFor(waiting) == null) return@LaunchedEffect
         pendingFocus = null
-        lookAt(waiting, remember = false)
+        lookAt(waiting)
     }
 
     // Glide rather than jump, so it is obvious the canvas moved rather than
@@ -217,7 +217,7 @@ fun EditorScreen(
 
     LaunchedEffect(ui.announcement?.id) {
         val announcement = ui.announcement ?: return@LaunchedEffect
-        announcement.focusNodeId?.let { lookAt(it, remember = false) }
+        announcement.focusNodeId?.let { lookAt(it) }
 
         val result = snackbars.showSnackbar(
             message = announcement.message,
@@ -320,7 +320,7 @@ fun EditorScreen(
                     focused = focused,
                     focusKey = focusKey,
                     onSelect = { selected = it },
-                    onJump = { lookAt(it, remember = true) },
+                    onJump = { lookAt(it) },
                     onHeight = { id, height ->
                         // Guarded: an unguarded write would re-lay-out for ever
                         // on a sub-pixel difference.
@@ -439,7 +439,7 @@ private fun Canvas(
             // pair of chips on the two bubbles and no line at all.
             if (edge.kind != EdgeKind.ARROW) return@mapNotNull null
             val text = measurer.measure(edge.label, labelStyle)
-            val at = midpointOf(edge.route) ?: return@mapNotNull null
+            val at = labelAnchorOf(edge.route) ?: return@mapNotNull null
 
             // Text is measured in pixels; routes are in dp.
             val halfWidth = text.size.width / density / 2f
@@ -486,6 +486,26 @@ private fun Canvas(
                         // rather than as a notch.
                         cap = StrokeCap.Round
                     )
+                }
+
+                // Which way the answer runs. A line arriving at a node says
+                // nothing about direction on its own, and the long horizontal
+                // stretch between two layers is the part that reads as
+                // ambiguous, so it gets a marker of its own rather than relying
+                // on the head at the far end.
+                corners.lastOrNull()?.let { tip ->
+                    val before = corners.getOrNull(corners.lastIndex - 1) ?: return@let
+                    drawArrowHead(tip, before, edgeColour, 7.dp.toPx())
+                }
+                corners.zipWithNext().maxByOrNull { (a, b) ->
+                    if (a.y == b.y) kotlin.math.abs(b.x - a.x) else 0f
+                }?.let { (a, b) ->
+                    // A quarter along, so it does not sit under the label, which
+                    // is centred on this same run.
+                    if (a.y == b.y && kotlin.math.abs(b.x - a.x) > 56.dp.toPx()) {
+                        val at = Offset(a.x + (b.x - a.x) * 0.25f, a.y)
+                        drawArrowHead(at, a, edgeColour, 6.dp.toPx())
+                    }
                 }
             }
 
@@ -553,6 +573,35 @@ private const val NODE_HEIGHT = 64f
 
 /** Breathing room under the last layer, so it is not flush with the edge. */
 private const val CANVAS_MARGIN = 48f
+
+/**
+ * A solid triangle at [tip], pointing away from [from].
+ *
+ * Drawn rather than stroked so it reads as a head at any zoom; a stroked chevron
+ * thins out as the canvas shrinks and stops being legible exactly when the graph
+ * is small enough that you need it.
+ */
+private fun DrawScope.drawArrowHead(tip: Offset, from: Offset, colour: Color, size: Float) {
+    val dx = tip.x - from.x
+    val dy = tip.y - from.y
+    val length = kotlin.math.sqrt(dx * dx + dy * dy)
+    if (length < 0.01f) return
+    val ux = dx / length
+    val uy = dy / length
+    // Perpendicular, for the two back corners.
+    val px = -uy
+    val py = ux
+    val backX = tip.x - ux * size
+    val backY = tip.y - uy * size
+    val half = size * 0.5f
+    val path = Path().apply {
+        moveTo(tip.x, tip.y)
+        lineTo(backX + px * half, backY + py * half)
+        lineTo(backX - px * half, backY - py * half)
+        close()
+    }
+    drawPath(path, colour)
+}
 
 /**
  * Where a bubble was seen on screen, and the pan that was in force at the time.
