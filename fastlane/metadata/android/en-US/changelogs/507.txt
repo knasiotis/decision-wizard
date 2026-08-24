@@ -1,0 +1,9 @@
+Two fixes to the flow editor.
+
+* Tapping a stub chip now takes you to the node at the other end. It used to
+  slide the canvas sideways and stop somewhere that was not the node it had
+  just highlighted, which was worst when zoomed out.
+* Labels on the connecting lines are readable again. A line could be drawn
+  straight across another line's label, and two labels close together could
+  print on top of each other. Lines are now drawn underneath every label, and
+  labels that would collide are spaced apart.

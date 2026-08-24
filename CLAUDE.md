@@ -674,6 +674,58 @@ Note that `README.md` says "the app asks for nothing", which is true of the
 manifest but not literally true of the built APK's permission list.
 
 
+## Two bugs worth not re-introducing
+
+Both shipped in v0.5.6 as fixes and came back, because each fix addressed the
+symptom and left the cause. Both now have tests that fail against the old code —
+verified by putting the old code back and watching them go red, which is the only
+way to know a regression test regresses anything.
+
+### A jump has to arrive at the node
+
+**Symptom:** tapping a stub chip slid the canvas sideways and stopped somewhere
+that was not the node it had just flashed. Worst when zoomed out.
+
+**Cause:** `keepInView` treated "keep the canvas on screen" as the *answer*
+rather than as a *constraint on* the answer. Whenever the canvas fitted an axis
+it returned the pan that centred the whole graph and discarded the requested pan
+entirely — so on that axis every jump produced the same movement no matter which
+node was asked for. Zooming out is what made the width fit, which is why zooming
+out made it worse.
+
+**Fix:** both cases are a *range* of legal pans, and the wanted pan is clamped
+into it. Content smaller than the viewport is held inside it, larger is held
+covering it, and either way the request survives as far as the range allows.
+
+The arithmetic is now `Viewport.clampPan` in `:graphcore`, not inline in the
+editor, so it is reachable from a JVM test — see `ViewportTest`. **Do not move it
+back into `:app`.** It is pure float arithmetic with no Android in it, and it is
+the second thing on this list precisely because it was untestable where it was.
+
+### Edges must be drawn under every label, not just their own
+
+**Symptom:** lines drawn straight across the text of an edge label.
+
+**Cause:** the paint loop drew each edge's line, then its label plate, then its
+text, one edge at a time. The opaque plate therefore only ever hid the line
+belonging to *its own* edge; any line painted afterwards ran across it. Nothing
+was wrong with the geometry.
+
+**Fix:** two passes over `painted` — every line, then every label.
+
+A related one, same area: every edge leaving a layer runs along the same empty
+band, so their label midpoints share a y and labels whose x's are close print on
+top of each other. Labels now step above and below the line to miss each other,
+alternating so the row stays centred on its band.
+
+**`LayoutEngine` was not at fault for either.** Worth knowing before digging
+there: `bandBelow` already routes through the gap using each layer's real tallest
+node, and `LayoutEngineTest` now proves it with heights that vary by title
+length. The old checks all passed a flat 64 for every bubble, which is the one
+case that cannot go wrong — level layer bottoms, so a route through the band
+clears everything by construction. Real bubbles are as tall as their wrapped
+title. **A layout test that hardcodes a uniform height is testing nothing.**
+
 ## Gotchas learned the hard way
 
 **Serialization defaults.** `GraphJson` sets `encodeDefaults = false` to keep
@@ -822,7 +874,12 @@ rehearsal instead of by burning a version number.
 - **v0.5.0 — done.** Snippets can be written rather than only read, resolutions,
   transcript export, graph copy, clickable stub chips, and undo that says what it
   did and takes you there.
-- **v0.5.6 — canvas fixes plus the F-Droid packaging, untagged.** Right-angled
+- **v0.5.7 — two editor fixes.** A stub chip jump that actually arrives at the
+  node, and edge labels that are not painted over. Both are second attempts:
+  v0.5.6 fixed the symptom each time and left the cause, so both now have tests
+  that fail against the old behaviour. See "Two bugs worth not re-introducing".
+
+- **v0.5.6 — canvas fixes plus the F-Droid packaging, released.** Right-angled
   edge routes so a hop across a layer stops running behind the node in between,
   measured bubble heights behind it, a stub-chip jump that keeps the canvas on
   screen, and a focus flash that no longer sticks. Bug fixes, so a patch tag
@@ -926,14 +983,15 @@ work and the tags; the last published build is `v0.5.5` (versionCode 33).
 `:graphcore` is green at **103** tests. `README.md` has been rewritten and is
 current.
 
-**`main` is five commits past `v0.5.5`** — four canvas fixes plus the release
-notes change — **and the F-Droid packaging is committed on top of them. All of
-it is v0.5.6.** Nothing is tagged or pushed yet.
+**v0.5.6 is released** — canvas fixes plus the F-Droid packaging, which took no
+version of its own. The published APK is versionCode 506, signed with the
+expected key, and its GitHub notes came from `release-notes/v0.5.6.md`, so the
+`--notes-file` path is proven.
 
-The packaging took no number of its own: `appVersionName=0.5.6` gives
-versionCode **506**, and `changelogs/506.txt` and `fdroid/…yml` agree with it.
-`release.yml` now refuses a tag that disagrees with `appVersionName`, so v0.5.6
-is the only tag this tree can publish.
+**The tree is now on v0.5.7**, two editor fixes, untagged. `appVersionName=0.5.7`
+gives versionCode **507**, with `changelogs/507.txt` and `fdroid/…yml` agreeing.
+`release.yml` refuses a tag that disagrees with `appVersionName`, so v0.5.7 is
+the only tag this tree can publish.
 
 **v0.6.0 is search and is being built in a separate session**, so do not assume
 the tree is yours and do not take that number.
