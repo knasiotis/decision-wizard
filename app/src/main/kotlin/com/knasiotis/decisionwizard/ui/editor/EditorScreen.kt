@@ -75,6 +75,7 @@ import com.knasiotis.decisionwizard.layout.LayoutEngine
 import com.knasiotis.decisionwizard.layout.NODE_WIDTH
 import com.knasiotis.decisionwizard.layout.Point
 import com.knasiotis.decisionwizard.layout.StubChip
+import com.knasiotis.decisionwizard.layout.Viewport
 import com.knasiotis.decisionwizard.layout.midpointOf
 import com.knasiotis.decisionwizard.model.Graph
 import com.knasiotis.decisionwizard.model.Issue
@@ -150,22 +151,29 @@ fun EditorScreen(
     }
 
     /**
-     * Keeps the canvas in the viewport. Centring one node on a graph that
-     * already fits shoves the rest of it off to one side, which reads as the
-     * jump having landed somewhere wrong rather than on the node it flashed —
-     * and the further out you zoom, the further it is shoved.
+     * Clamps a wanted pan to the ones that keep the canvas on screen, and
+     * otherwise leaves it alone.
+     *
+     * This used to centre the whole graph on any axis the graph fitted on,
+     * throwing the wanted pan away. That is what made a stub chip slide the
+     * canvas sideways and stop somewhere that was not the node it had just
+     * flashed: zoom out far enough for the width to fit and every jump
+     * re-centred the graph horizontally, whichever node had been asked for.
+     * Keeping the canvas on screen is a constraint on the answer, not the
+     * answer itself.
      */
     fun keepInView(wanted: Offset, of: GraphLayout): Offset {
         val margin = 24f * density
-        fun axis(want: Float, content: Float, extent: Int): Float =
-            if (content + margin * 2 <= extent) {
-                (extent - content) / 2f
-            } else {
-                want.coerceIn(extent - content - margin, margin)
-            }
+        // The arithmetic lives in :graphcore so it can be tested on the JVM.
+        // This bug has now been fixed twice; a third time should fail a test
+        // rather than a screenshot.
         return Offset(
-            axis(wanted.x, of.width * scale * density, viewport.width),
-            axis(wanted.y, of.height * scale * density, viewport.height)
+            Viewport.clampPan(
+                wanted.x, of.width * scale * density, viewport.width.toFloat(), margin
+            ),
+            Viewport.clampPan(
+                wanted.y, of.height * scale * density, viewport.height.toFloat(), margin
+            )
         )
     }
 
